@@ -184,6 +184,50 @@
       pointer-events: none;
     }
 
+    /* ── Trash Button ── */
+    .trash-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      opacity: 0.25;
+      transition: opacity 0.2s, background 0.2s;
+      z-index: 10;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .trash-btn:hover,
+    .trash-btn:active {
+      opacity: 0.6;
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .trash-btn svg {
+      width: 16px;
+      height: 16px;
+      stroke: var(--ink);
+      stroke-width: 1.8;
+      fill: none;
+    }
+
+    /* Crumple animation for delete */
+    .paper.crumpling {
+      transform: scale(0.7) rotate(4deg);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.35s cubic-bezier(0.4, 0, 1, 1),
+                  opacity 0.35s cubic-bezier(0.4, 0, 1, 1);
+    }
+
     /* ── New Page Button ── */
     .new-btn {
       position: fixed;
@@ -319,6 +363,12 @@
   <div class="paper-stack" id="paperStack">
     <div class="paper fade-in" id="currentPaper">
       <div class="paper-content">
+        <button class="trash-btn" id="trashBtn" aria-label="このページを捨てる">
+          <svg viewBox="0 0 24 24">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
         <textarea id="editor" placeholder="なんか書く..." autofocus></textarea>
         <div class="paper-date" id="paperDate"></div>
       </div>
@@ -382,6 +432,7 @@
     const pageCount = document.getElementById('pageCount');
     const pagesHint = document.getElementById('pagesHint');
     const newBtn = document.getElementById('newBtn');
+    const trashBtn = document.getElementById('trashBtn');
     const swipeLeft = document.getElementById('swipeLeft');
     const swipeRight = document.getElementById('swipeRight');
 
@@ -492,9 +543,52 @@
       });
     }
 
+    // ── Delete Page ──
+    function deletePage() {
+      if (pages.length <= 1) {
+        // 最後の1枚 → 中身だけ消す
+        editor.value = '';
+        pages[currentIndex].text = '';
+        savePages(pages);
+        return;
+      }
+
+      // くしゃっとアニメーション
+      paperEl.classList.add('crumpling');
+
+      setTimeout(() => {
+        pages.splice(currentIndex, 1);
+        savePages(pages);
+
+        // 次のページか、前のページへ
+        if (currentIndex >= pages.length) {
+          currentIndex = pages.length - 1;
+        }
+
+        const page = pages[currentIndex];
+        editor.value = page.text;
+        paperDate.textContent = formatDate(page.created);
+        updateUI();
+
+        paperEl.classList.remove('crumpling');
+        paperEl.classList.add('entering');
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            paperEl.classList.remove('entering');
+            editor.focus();
+          });
+        });
+      }, 300);
+    }
+
     // ── Events ──
     newBtn.addEventListener('click', () => {
       addNewPage();
+    });
+
+    trashBtn.addEventListener('click', () => {
+      deletePage();
     });
 
     // Auto-save on typing
