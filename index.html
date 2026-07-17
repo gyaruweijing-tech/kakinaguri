@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon-192.jpg">
   <link rel="icon" href="icon-192.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500&family=Caveat:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500&display=swap" rel="stylesheet">
   <style>
     * {
       margin: 0;
@@ -22,12 +22,17 @@
 
     :root {
       --paper-bg: #fffef9;
-      --paper-line: #e8e4dc;
+      --paper-line: #e0dbd3;
       --paper-shadow: rgba(0, 0, 0, 0.08);
       --ink: #2c2c2c;
-      --ink-light: #999;
+      --ink-light: #aaa;
+      --ink-crossed: #c4c0b8;
       --accent: #e07a5f;
+      --accent-shadow: rgba(224, 122, 95, 0.35);
       --bg: #f0ece4;
+      --binding: #d4a574;
+      --binding-dark: #b8895c;
+      --line-height: 38px;
     }
 
     html, body {
@@ -42,8 +47,8 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 16px;
-      padding-bottom: env(safe-area-inset-bottom, 16px);
+      padding: 12px;
+      padding-bottom: env(safe-area-inset-bottom, 12px);
     }
 
     /* ── Header ── */
@@ -54,52 +59,68 @@
       right: 0;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 12px 20px;
+      justify-content: center;
+      padding: 10px 20px;
       z-index: 100;
     }
 
     .app-title {
-      font-size: 14px;
+      font-size: 13px;
       color: var(--ink-light);
-      letter-spacing: 0.05em;
+      letter-spacing: 0.08em;
       user-select: none;
     }
 
-    .page-count {
-      font-size: 12px;
-      color: var(--ink-light);
-      opacity: 0.6;
-      user-select: none;
-      transition: opacity 0.3s;
-    }
-
-    /* ── Paper Stack ── */
-    .paper-stack {
+    /* ── Paper Wrapper ── */
+    .paper-wrapper {
       position: relative;
       width: 100%;
       max-width: 420px;
       height: calc(100% - 100px);
-      perspective: 1200px;
+      margin-top: 36px;
     }
 
+    /* ── Notepad Binding (top) ── */
+    .notepad-binding {
+      position: absolute;
+      top: -6px;
+      left: 8px;
+      right: 8px;
+      height: 14px;
+      background: linear-gradient(180deg, var(--binding-dark) 0%, var(--binding) 40%, var(--binding-dark) 100%);
+      border-radius: 3px 3px 0 0;
+      z-index: 10;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+    }
+
+    .notepad-binding::after {
+      content: '';
+      position: absolute;
+      bottom: -3px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.06), transparent);
+    }
+
+    /* ── Paper ── */
     .paper {
       position: absolute;
       inset: 0;
+      top: 6px;
       background: var(--paper-bg);
-      border-radius: 4px;
+      border-radius: 0 0 4px 4px;
       box-shadow:
         0 1px 3px var(--paper-shadow),
         0 4px 12px var(--paper-shadow);
       display: flex;
       flex-direction: column;
-      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-                  opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      transform-origin: center bottom;
+      overflow: hidden;
+      transform-origin: top center;
       will-change: transform, opacity;
     }
 
-    /* 下に重なってる紙っぽく */
+    /* 紙の重なり */
     .paper::before {
       content: '';
       position: absolute;
@@ -128,67 +149,174 @@
       opacity: 0.4;
     }
 
-    .paper.flipping {
-      transform: rotateX(-25deg) translateY(-60px) scale(0.92);
-      opacity: 0;
+    /* ── Tear animation (上綴じのメモ帳から破る) ── */
+    @keyframes tearPage {
+      0% {
+        transform: rotateX(0deg);
+        opacity: 1;
+        filter: none;
+      }
+      30% {
+        transform: rotateX(-20deg) translateY(-10px);
+        opacity: 1;
+      }
+      60% {
+        transform: rotateX(-50deg) translateY(-40px);
+        opacity: 0.7;
+        filter: brightness(1.05);
+      }
+      100% {
+        transform: rotateX(-90deg) translateY(-80px) scale(0.95);
+        opacity: 0;
+      }
+    }
+
+    .paper.tearing {
+      animation: tearPage 0.5s cubic-bezier(0.4, 0, 0.7, 1) forwards;
       pointer-events: none;
+    }
+
+    /* New page enters */
+    @keyframes enterPage {
+      0% {
+        transform: translateY(10px);
+        opacity: 0;
+      }
+      100% {
+        transform: translateY(0);
+        opacity: 1;
+      }
     }
 
     .paper.entering {
-      transform: rotateX(15deg) translateY(30px) scale(1.02);
-      opacity: 0;
+      animation: enterPage 0.3s ease forwards;
     }
 
-    .paper-content {
+    /* Crumple for delete */
+    @keyframes crumplePage {
+      0% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(0.85) rotate(3deg);
+        opacity: 0.6;
+      }
+      100% {
+        transform: scale(0.6) rotate(6deg) translateY(30px);
+        opacity: 0;
+      }
+    }
+
+    .paper.crumpling {
+      animation: crumplePage 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
+      pointer-events: none;
+    }
+
+    /* ── Lines Container ── */
+    .lines-container {
       flex: 1;
-      position: relative;
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 12px 0 60px 0;
+      -webkit-overflow-scrolling: touch;
     }
 
-    .paper textarea {
-      width: 100%;
-      height: 100%;
+    .lines-container::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* ── Line Item ── */
+    .line-item {
+      display: flex;
+      align-items: stretch;
+      min-height: var(--line-height);
+      position: relative;
+      border-bottom: 1px solid var(--paper-line);
+    }
+
+    /* 左マージン（線を引くタップエリア） */
+    .line-cross-btn {
+      width: 36px;
+      min-height: var(--line-height);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      position: relative;
+      border-right: 1px solid rgba(224, 122, 95, 0.2);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .line-cross-btn::after {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: transparent;
+      border: 1.5px solid var(--ink-light);
+      opacity: 0.3;
+      transition: all 0.25s ease;
+    }
+
+    .line-item.crossed .line-cross-btn::after {
+      background: var(--accent);
+      border-color: var(--accent);
+      opacity: 0.6;
+      transform: scale(0.85);
+    }
+
+    .line-cross-btn:active::after {
+      transform: scale(1.3);
+    }
+
+    /* テキスト入力 */
+    .line-input {
+      flex: 1;
       border: none;
       outline: none;
-      resize: none;
       background: transparent;
       font-family: 'Zen Kaku Gothic New', sans-serif;
-      font-size: 17px;
-      line-height: 2;
+      font-size: 16px;
+      line-height: var(--line-height);
+      height: var(--line-height);
       color: var(--ink);
-      padding: 28px 24px 24px;
-      /* 罫線 */
-      background-image: repeating-linear-gradient(
-        transparent,
-        transparent 33px,
-        var(--paper-line) 33px,
-        var(--paper-line) 34px
-      );
-      background-position-y: 27px;
+      padding: 0 14px;
+      min-width: 0;
+      transition: color 0.3s, opacity 0.3s;
     }
 
-    .paper textarea::placeholder {
+    .line-input::placeholder {
       color: var(--ink-light);
-      opacity: 0.4;
-      font-style: italic;
+      opacity: 0.3;
     }
 
-    .paper-date {
-      position: absolute;
-      bottom: 8px;
-      right: 12px;
-      font-size: 10px;
-      color: var(--ink-light);
-      opacity: 0.4;
-      user-select: none;
-      pointer-events: none;
+    /* 取り消し線 */
+    .line-item.crossed .line-input {
+      text-decoration: line-through;
+      text-decoration-color: var(--ink-crossed);
+      text-decoration-thickness: 1.5px;
+      color: var(--ink-crossed);
+      opacity: 0.6;
+    }
+
+    /* 取り消し線アニメーション */
+    @keyframes strikeAnim {
+      from { clip-path: inset(0 100% 0 0); }
+      to { clip-path: inset(0 0 0 0); }
+    }
+
+    .line-item.crossing .line-input {
+      animation: strikeAnim 0.3s ease forwards;
     }
 
     /* ── Trash Button ── */
     .trash-btn {
       position: absolute;
-      top: 6px;
-      right: 6px;
+      top: 4px;
+      right: 4px;
       width: 32px;
       height: 32px;
       border: none;
@@ -198,140 +326,118 @@
       align-items: center;
       justify-content: center;
       border-radius: 6px;
-      opacity: 0.25;
+      opacity: 0.2;
       transition: opacity 0.2s, background 0.2s;
       z-index: 10;
       user-select: none;
-      -webkit-user-select: none;
     }
 
-    .trash-btn:hover,
     .trash-btn:active {
       opacity: 0.6;
       background: rgba(0, 0, 0, 0.04);
     }
 
     .trash-btn svg {
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
       stroke: var(--ink);
       stroke-width: 1.8;
       fill: none;
     }
 
-    /* Crumple animation for delete */
-    .paper.crumpling {
-      transform: scale(0.7) rotate(4deg);
-      opacity: 0;
+    /* ── Paper Date ── */
+    .paper-date {
+      position: absolute;
+      bottom: 6px;
+      right: 10px;
+      font-size: 10px;
+      color: var(--ink-light);
+      opacity: 0.35;
+      user-select: none;
       pointer-events: none;
-      transition: transform 0.35s cubic-bezier(0.4, 0, 1, 1),
-                  opacity 0.35s cubic-bezier(0.4, 0, 1, 1);
     }
 
-    /* ── New Page Button ── */
-    .new-btn {
+    /* ── Bottom Nav Bar ── */
+    .nav-bar {
       position: fixed;
-      bottom: max(24px, env(safe-area-inset-bottom, 24px));
-      right: 24px;
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
+      bottom: max(12px, env(safe-area-inset-bottom, 12px));
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 100;
+      background: rgba(255, 254, 249, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 6px 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+    }
+
+    .nav-btn {
+      width: 40px;
+      height: 40px;
       border: none;
-      background: var(--accent);
-      color: #fff;
-      font-size: 28px;
+      background: transparent;
       cursor: pointer;
-      box-shadow:
-        0 4px 14px rgba(224, 122, 95, 0.35),
-        0 2px 4px rgba(0, 0, 0, 0.1);
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: transform 0.2s, box-shadow 0.2s;
-      z-index: 100;
+      border-radius: 12px;
+      transition: background 0.15s, opacity 0.15s;
       user-select: none;
       -webkit-user-select: none;
     }
 
-    .new-btn:active {
-      transform: scale(0.92);
-      box-shadow:
-        0 2px 8px rgba(224, 122, 95, 0.3),
-        0 1px 2px rgba(0, 0, 0, 0.1);
+    .nav-btn:active {
+      background: rgba(0, 0, 0, 0.06);
     }
 
-    .new-btn svg {
-      width: 24px;
-      height: 24px;
-      stroke: #fff;
-      stroke-width: 2.5;
+    .nav-btn:disabled {
+      opacity: 0.2;
+      cursor: default;
+    }
+
+    .nav-btn:disabled:active {
+      background: transparent;
+    }
+
+    .nav-btn svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--ink);
+      stroke-width: 2;
       fill: none;
     }
 
-    /* ── Pages List (swipe up) ── */
-    .pages-hint {
-      position: fixed;
-      bottom: max(24px, env(safe-area-inset-bottom, 24px));
-      left: 24px;
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      z-index: 100;
-    }
-
-    .page-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--ink);
-      opacity: 0.15;
-      transition: opacity 0.3s, transform 0.3s;
-      cursor: pointer;
-    }
-
-    .page-dot.active {
+    .nav-indicator {
+      font-size: 12px;
+      color: var(--ink);
       opacity: 0.5;
-      transform: scale(1.3);
+      min-width: 40px;
+      text-align: center;
+      user-select: none;
+      font-variant-numeric: tabular-nums;
     }
 
-    /* ── Empty State ── */
-    .empty-state {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      color: var(--ink-light);
-      opacity: 0.4;
-      pointer-events: none;
-      gap: 8px;
+    .nav-divider {
+      width: 1px;
+      height: 20px;
+      background: rgba(0, 0, 0, 0.08);
+      margin: 0 2px;
     }
 
-    .empty-state svg {
-      width: 48px;
-      height: 48px;
-      stroke: currentColor;
-      stroke-width: 1.5;
-      fill: none;
-      margin-bottom: 8px;
+    .nav-btn.accent svg {
+      stroke: var(--accent);
+      stroke-width: 2.5;
     }
 
-    .empty-state span {
-      font-size: 14px;
+    .nav-btn.danger svg {
+      stroke: #c4756a;
     }
 
-    /* ── Animations ── */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .fade-in {
-      animation: fadeIn 0.5s ease forwards;
-    }
-
-    /* ── Swipe nav indicator ── */
+    /* ── Swipe indicators ── */
     .swipe-indicator {
       position: fixed;
       top: 50%;
@@ -349,6 +455,16 @@
     .swipe-indicator.left { left: 4px; }
     .swipe-indicator.right { right: 4px; }
     .swipe-indicator.visible { opacity: 0.15; }
+
+    /* ── Animations ── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in {
+      animation: fadeIn 0.4s ease forwards;
+    }
   </style>
 </head>
 <body>
@@ -356,35 +472,40 @@
   <!-- Header -->
   <div class="header">
     <span class="app-title">書きなぐり</span>
-    <span class="page-count" id="pageCount"></span>
   </div>
 
   <!-- Paper -->
-  <div class="paper-stack" id="paperStack">
+  <div class="paper-wrapper" id="paperWrapper">
+    <div class="notepad-binding"></div>
     <div class="paper fade-in" id="currentPaper">
-      <div class="paper-content">
-        <button class="trash-btn" id="trashBtn" aria-label="このページを捨てる">
-          <svg viewBox="0 0 24 24">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          </svg>
-        </button>
-        <textarea id="editor" placeholder="なんか書く..." autofocus></textarea>
-        <div class="paper-date" id="paperDate"></div>
-      </div>
+      <button class="trash-btn" id="trashBtn" aria-label="このページを捨てる">
+        <svg viewBox="0 0 24 24">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+      </button>
+      <div class="lines-container" id="linesContainer"></div>
+      <div class="paper-date" id="paperDate"></div>
     </div>
   </div>
 
-  <!-- Page dots -->
-  <div class="pages-hint" id="pagesHint"></div>
-
-  <!-- New page button -->
-  <button class="new-btn" id="newBtn" aria-label="新しいページ">
-    <svg viewBox="0 0 24 24">
-      <line x1="12" y1="5" x2="12" y2="19"></line>
-      <line x1="5" y1="12" x2="19" y2="12"></line>
-    </svg>
-  </button>
+  <!-- Navigation Bar -->
+  <div class="nav-bar" id="navBar">
+    <button class="nav-btn" id="prevBtn" aria-label="前のページ">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+    <span class="nav-indicator" id="navIndicator">1 / 1</span>
+    <button class="nav-btn" id="nextBtn" aria-label="次のページ">
+      <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"></polyline></svg>
+    </button>
+    <div class="nav-divider"></div>
+    <button class="nav-btn accent" id="newBtn" aria-label="新しいページ">
+      <svg viewBox="0 0 24 24">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+  </div>
 
   <!-- Swipe indicators -->
   <div class="swipe-indicator left" id="swipeLeft"></div>
@@ -402,15 +523,30 @@
         const pages = JSON.parse(raw);
         const now = Date.now();
         const cutoff = EXPIRY_DAYS * 24 * 60 * 60 * 1000;
-        // 3日で消す
-        return pages.filter(p => (now - p.created) < cutoff);
+        // 3日で消す & データ移行
+        return pages
+          .filter(p => (now - p.created) < cutoff)
+          .map(migratePage);
       } catch {
         return [];
       }
     }
 
-    function savePages(pages) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(pages));
+    // 旧フォーマット(text) → 新フォーマット(lines)に移行
+    function migratePage(page) {
+      if (page.lines) return page;
+      const text = page.text || '';
+      const lineTexts = text.split('\n');
+      page.lines = lineTexts.map(t => ({ text: t, crossed: false }));
+      if (page.lines.length === 0 || page.lines[page.lines.length - 1].text !== '') {
+        page.lines.push({ text: '', crossed: false });
+      }
+      delete page.text;
+      return page;
+    }
+
+    function savePages(pagesData) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pagesData));
     }
 
     function formatDate(ts) {
@@ -425,177 +561,251 @@
     // ── State ──
     let pages = loadPages();
     let currentIndex = -1;
+    let isAnimating = false;
 
-    const editor = document.getElementById('editor');
     const paperEl = document.getElementById('currentPaper');
+    const linesContainer = document.getElementById('linesContainer');
     const paperDate = document.getElementById('paperDate');
-    const pageCount = document.getElementById('pageCount');
-    const pagesHint = document.getElementById('pagesHint');
+    const navIndicator = document.getElementById('navIndicator');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
     const newBtn = document.getElementById('newBtn');
     const trashBtn = document.getElementById('trashBtn');
     const swipeLeft = document.getElementById('swipeLeft');
     const swipeRight = document.getElementById('swipeRight');
 
-    // ── Init ──
-    function init() {
-      pages = loadPages();
-      if (pages.length === 0) {
-        addNewPage();
-      } else {
-        currentIndex = pages.length - 1;
-        showPage(currentIndex, false);
+    // ── Render Lines ──
+    function renderLines() {
+      const page = pages[currentIndex];
+      if (!page) return;
+
+      linesContainer.innerHTML = '';
+
+      page.lines.forEach((line, i) => {
+        const item = document.createElement('div');
+        item.className = 'line-item' + (line.crossed ? ' crossed' : '');
+        item.dataset.index = i;
+
+        // 左マージン（取り消しボタン）
+        const crossBtn = document.createElement('div');
+        crossBtn.className = 'line-cross-btn';
+        crossBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          toggleCross(i);
+        });
+
+        // テキスト入力
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'line-input';
+        input.value = line.text;
+        if (i === page.lines.length - 1 && line.text === '') {
+          input.placeholder = 'なんか書く...';
+        }
+
+        // 入力イベント
+        input.addEventListener('input', () => {
+          page.lines[i].text = input.value;
+          scheduleSave();
+
+          // 最後の行に書いたら新しい空行を追加
+          if (i === page.lines.length - 1 && input.value !== '') {
+            page.lines.push({ text: '', crossed: false });
+            renderLines();
+            // 新しく追加した行ではなく、今の行にフォーカスを戻す
+            focusLine(i, input.value.length);
+          }
+        });
+
+        // キーボードイベント
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            // カーソル位置で行を分割
+            const pos = input.selectionStart;
+            const before = input.value.substring(0, pos);
+            const after = input.value.substring(pos);
+            page.lines[i].text = before;
+            page.lines.splice(i + 1, 0, { text: after, crossed: false });
+            renderLines();
+            focusLine(i + 1, 0);
+            scheduleSave();
+          } else if (e.key === 'Backspace' && input.selectionStart === 0 && input.selectionEnd === 0 && i > 0) {
+            e.preventDefault();
+            // 前の行と結合
+            const prevText = page.lines[i - 1].text;
+            const curText = page.lines[i].text;
+            page.lines[i - 1].text = prevText + curText;
+            page.lines.splice(i, 1);
+            renderLines();
+            focusLine(i - 1, prevText.length);
+            scheduleSave();
+          }
+        });
+
+        item.appendChild(crossBtn);
+        item.appendChild(input);
+        linesContainer.appendChild(item);
+      });
+    }
+
+    function focusLine(index, cursorPos) {
+      requestAnimationFrame(() => {
+        const items = linesContainer.querySelectorAll('.line-item');
+        if (items[index]) {
+          const input = items[index].querySelector('.line-input');
+          input.focus();
+          if (typeof cursorPos === 'number') {
+            input.setSelectionRange(cursorPos, cursorPos);
+          }
+        }
+      });
+    }
+
+    function toggleCross(index) {
+      const page = pages[currentIndex];
+      if (!page || !page.lines[index]) return;
+
+      page.lines[index].crossed = !page.lines[index].crossed;
+
+      const items = linesContainer.querySelectorAll('.line-item');
+      if (items[index]) {
+        if (page.lines[index].crossed) {
+          items[index].classList.add('crossing');
+          items[index].classList.add('crossed');
+          setTimeout(() => items[index].classList.remove('crossing'), 300);
+        } else {
+          items[index].classList.remove('crossed');
+          items[index].classList.remove('crossing');
+        }
+      }
+
+      scheduleSave();
+    }
+
+    // ── Save (debounced) ──
+    let saveTimeout;
+    function scheduleSave() {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => savePages(pages), 400);
+    }
+
+    function saveCurrent() {
+      // lines の値を DOM から同期
+      if (currentIndex >= 0 && currentIndex < pages.length) {
+        const inputs = linesContainer.querySelectorAll('.line-input');
+        const page = pages[currentIndex];
+        inputs.forEach((input, i) => {
+          if (page.lines[i]) {
+            page.lines[i].text = input.value;
+          }
+        });
+        savePages(pages);
       }
     }
 
+    // ── Page Management ──
+    function showPage(index, animType = 'none') {
+      if (index < 0 || index >= pages.length || isAnimating) return;
+
+      saveCurrent();
+
+      if (animType === 'none') {
+        currentIndex = index;
+        renderCurrentPage();
+      } else {
+        isAnimating = true;
+        const animClass = animType === 'tear' ? 'tearing' : 'crumpling';
+        paperEl.classList.add(animClass);
+
+        const duration = animType === 'tear' ? 450 : 350;
+        setTimeout(() => {
+          paperEl.classList.remove(animClass);
+          currentIndex = index;
+          renderCurrentPage();
+
+          paperEl.classList.add('entering');
+          setTimeout(() => {
+            paperEl.classList.remove('entering');
+            isAnimating = false;
+          }, 300);
+        }, duration);
+      }
+    }
+
+    function renderCurrentPage() {
+      const page = pages[currentIndex];
+      paperDate.textContent = formatDate(page.created);
+      renderLines();
+      updateNav();
+    }
+
     function addNewPage() {
-      // 今のページを保存
+      if (isAnimating) return;
       saveCurrent();
 
       const newPage = {
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        text: '',
+        lines: [{ text: '', crossed: false }],
         created: Date.now(),
       };
       pages.push(newPage);
-      currentIndex = pages.length - 1;
       savePages(pages);
 
-      // アニメーション
-      flipToPage(currentIndex);
+      // 破るアニメーションで新ページへ
+      showPage(pages.length - 1, 'tear');
     }
 
-    function saveCurrent() {
-      if (currentIndex >= 0 && currentIndex < pages.length) {
-        pages[currentIndex].text = editor.value;
-        savePages(pages);
-      }
-    }
-
-    function showPage(index, animate = true) {
-      if (index < 0 || index >= pages.length) return;
-
-      if (animate) {
-        flipToPage(index);
-      } else {
-        currentIndex = index;
-        const page = pages[currentIndex];
-        editor.value = page.text;
-        paperDate.textContent = formatDate(page.created);
-        updateUI();
-      }
-    }
-
-    function flipToPage(index) {
-      paperEl.classList.add('flipping');
-
-      setTimeout(() => {
-        currentIndex = index;
-        const page = pages[currentIndex];
-        editor.value = page.text;
-        paperDate.textContent = formatDate(page.created);
-        updateUI();
-
-        paperEl.classList.remove('flipping');
-        paperEl.classList.add('entering');
-
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            paperEl.classList.remove('entering');
-            editor.focus();
-          });
-        });
-      }, 300);
-    }
-
-    function updateUI() {
-      // Page count
-      pageCount.textContent = `${currentIndex + 1} / ${pages.length}`;
-
-      // Dots
-      const maxDots = 8;
-      const total = pages.length;
-      let html = '';
-
-      if (total <= maxDots) {
-        for (let i = 0; i < total; i++) {
-          html += `<div class="page-dot${i === currentIndex ? ' active' : ''}" data-idx="${i}"></div>`;
-        }
-      } else {
-        // Show subset around current
-        let start = Math.max(0, currentIndex - 3);
-        let end = Math.min(total, start + maxDots);
-        if (end - start < maxDots) start = Math.max(0, end - maxDots);
-        for (let i = start; i < end; i++) {
-          html += `<div class="page-dot${i === currentIndex ? ' active' : ''}" data-idx="${i}"></div>`;
-        }
-      }
-      pagesHint.innerHTML = html;
-
-      // Dot click handlers
-      pagesHint.querySelectorAll('.page-dot').forEach(dot => {
-        dot.addEventListener('click', () => {
-          const idx = parseInt(dot.dataset.idx);
-          if (idx !== currentIndex) {
-            saveCurrent();
-            showPage(idx);
-          }
-        });
-      });
-    }
-
-    // ── Delete Page ──
     function deletePage() {
+      if (isAnimating) return;
+
       if (pages.length <= 1) {
         // 最後の1枚 → 中身だけ消す
-        editor.value = '';
-        pages[currentIndex].text = '';
+        pages[currentIndex].lines = [{ text: '', crossed: false }];
+        renderLines();
+        focusLine(0);
         savePages(pages);
         return;
       }
 
-      // くしゃっとアニメーション
+      isAnimating = true;
       paperEl.classList.add('crumpling');
 
       setTimeout(() => {
         pages.splice(currentIndex, 1);
         savePages(pages);
 
-        // 次のページか、前のページへ
         if (currentIndex >= pages.length) {
           currentIndex = pages.length - 1;
         }
 
-        const page = pages[currentIndex];
-        editor.value = page.text;
-        paperDate.textContent = formatDate(page.created);
-        updateUI();
-
         paperEl.classList.remove('crumpling');
-        paperEl.classList.add('entering');
+        renderCurrentPage();
 
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            paperEl.classList.remove('entering');
-            editor.focus();
-          });
-        });
-      }, 300);
+        paperEl.classList.add('entering');
+        setTimeout(() => {
+          paperEl.classList.remove('entering');
+          isAnimating = false;
+        }, 300);
+      }, 350);
+    }
+
+    function updateNav() {
+      navIndicator.textContent = `${currentIndex + 1} / ${pages.length}`;
+      prevBtn.disabled = currentIndex <= 0;
+      nextBtn.disabled = currentIndex >= pages.length - 1;
     }
 
     // ── Events ──
-    newBtn.addEventListener('click', () => {
-      addNewPage();
+    newBtn.addEventListener('click', addNewPage);
+    trashBtn.addEventListener('click', deletePage);
+
+    prevBtn.addEventListener('click', () => {
+      if (currentIndex > 0) showPage(currentIndex - 1, 'tear');
     });
 
-    trashBtn.addEventListener('click', () => {
-      deletePage();
-    });
-
-    // Auto-save on typing
-    let saveTimeout;
-    editor.addEventListener('input', () => {
-      clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(saveCurrent, 500);
+    nextBtn.addEventListener('click', () => {
+      if (currentIndex < pages.length - 1) showPage(currentIndex + 1, 'tear');
     });
 
     // Swipe navigation
@@ -604,7 +814,6 @@
     let isSwiping = false;
 
     document.addEventListener('touchstart', (e) => {
-      // Don't intercept touches on the textarea for scrolling
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
       isSwiping = false;
@@ -615,7 +824,6 @@
       const dx = e.touches[0].clientX - touchStartX;
       const dy = e.touches[0].clientY - touchStartY;
 
-      // Only horizontal swipe
       if (Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy) * 1.5) {
         isSwiping = true;
         if (dx > 0 && currentIndex > 0) {
@@ -637,9 +845,9 @@
       if (Math.abs(dx) > 60) {
         saveCurrent();
         if (dx > 0 && currentIndex > 0) {
-          showPage(currentIndex - 1);
+          showPage(currentIndex - 1, 'tear');
         } else if (dx < 0 && currentIndex < pages.length - 1) {
-          showPage(currentIndex + 1);
+          showPage(currentIndex + 1, 'tear');
         }
       }
 
@@ -651,7 +859,17 @@
     document.addEventListener('visibilitychange', saveCurrent);
     window.addEventListener('beforeunload', saveCurrent);
 
-    // Cleanup expired on load
+    // ── Init ──
+    function init() {
+      pages = loadPages();
+      if (pages.length === 0) {
+        addNewPage();
+      } else {
+        currentIndex = pages.length - 1;
+        renderCurrentPage();
+      }
+    }
+
     init();
   </script>
 </body>
