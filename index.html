@@ -149,67 +149,10 @@
       opacity: 0.4;
     }
 
-    /* ── Tear animation (上綴じのメモ帳から破る) ── */
-    @keyframes tearPage {
-      0% {
-        transform: rotateX(0deg);
-        opacity: 1;
-        filter: none;
-      }
-      30% {
-        transform: rotateX(-20deg) translateY(-10px);
-        opacity: 1;
-      }
-      60% {
-        transform: rotateX(-50deg) translateY(-40px);
-        opacity: 0.7;
-        filter: brightness(1.05);
-      }
-      100% {
-        transform: rotateX(-90deg) translateY(-80px) scale(0.95);
-        opacity: 0;
-      }
-    }
-
-    .paper.tearing {
-      animation: tearPage 0.5s cubic-bezier(0.4, 0, 0.7, 1) forwards;
-      pointer-events: none;
-    }
-
-    /* New page enters */
-    @keyframes enterPage {
-      0% {
-        transform: translateY(10px);
-        opacity: 0;
-      }
-      100% {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-
-    .paper.entering {
-      animation: enterPage 0.3s ease forwards;
-    }
-
-    /* Crumple for delete */
-    @keyframes crumplePage {
-      0% {
-        transform: scale(1) rotate(0deg);
-        opacity: 1;
-      }
-      50% {
-        transform: scale(0.85) rotate(3deg);
-        opacity: 0.6;
-      }
-      100% {
-        transform: scale(0.6) rotate(6deg) translateY(30px);
-        opacity: 0;
-      }
-    }
-
-    .paper.crumpling {
-      animation: crumplePage 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
+    /* ── Page transition (シンプルなフェード) ── */
+    .paper.switching {
+      opacity: 0;
+      transition: opacity 0.15s ease;
       pointer-events: none;
     }
 
@@ -705,32 +648,20 @@
     }
 
     // ── Page Management ──
-    function showPage(index, animType = 'none') {
+    function showPage(index) {
       if (index < 0 || index >= pages.length || isAnimating) return;
 
       saveCurrent();
 
-      if (animType === 'none') {
+      isAnimating = true;
+      paperEl.classList.add('switching');
+
+      setTimeout(() => {
         currentIndex = index;
         renderCurrentPage();
-      } else {
-        isAnimating = true;
-        const animClass = animType === 'tear' ? 'tearing' : 'crumpling';
-        paperEl.classList.add(animClass);
-
-        const duration = animType === 'tear' ? 450 : 350;
-        setTimeout(() => {
-          paperEl.classList.remove(animClass);
-          currentIndex = index;
-          renderCurrentPage();
-
-          paperEl.classList.add('entering');
-          setTimeout(() => {
-            paperEl.classList.remove('entering');
-            isAnimating = false;
-          }, 300);
-        }, duration);
-      }
+        paperEl.classList.remove('switching');
+        isAnimating = false;
+      }, 150);
     }
 
     function renderCurrentPage() {
@@ -752,8 +683,7 @@
       pages.push(newPage);
       savePages(pages);
 
-      // 破るアニメーションで新ページへ
-      showPage(pages.length - 1, 'tear');
+      showPage(pages.length - 1);
     }
 
     function deletePage() {
@@ -769,7 +699,7 @@
       }
 
       isAnimating = true;
-      paperEl.classList.add('crumpling');
+      paperEl.classList.add('switching');
 
       setTimeout(() => {
         pages.splice(currentIndex, 1);
@@ -779,15 +709,10 @@
           currentIndex = pages.length - 1;
         }
 
-        paperEl.classList.remove('crumpling');
         renderCurrentPage();
-
-        paperEl.classList.add('entering');
-        setTimeout(() => {
-          paperEl.classList.remove('entering');
-          isAnimating = false;
-        }, 300);
-      }, 350);
+        paperEl.classList.remove('switching');
+        isAnimating = false;
+      }, 150);
     }
 
     function updateNav() {
@@ -801,11 +726,11 @@
     trashBtn.addEventListener('click', deletePage);
 
     prevBtn.addEventListener('click', () => {
-      if (currentIndex > 0) showPage(currentIndex - 1, 'tear');
+      if (currentIndex > 0) showPage(currentIndex - 1);
     });
 
     nextBtn.addEventListener('click', () => {
-      if (currentIndex < pages.length - 1) showPage(currentIndex + 1, 'tear');
+      if (currentIndex < pages.length - 1) showPage(currentIndex + 1);
     });
 
     // Swipe navigation
@@ -845,9 +770,9 @@
       if (Math.abs(dx) > 60) {
         saveCurrent();
         if (dx > 0 && currentIndex > 0) {
-          showPage(currentIndex - 1, 'tear');
+          showPage(currentIndex - 1);
         } else if (dx < 0 && currentIndex < pages.length - 1) {
-          showPage(currentIndex + 1, 'tear');
+          showPage(currentIndex + 1);
         }
       }
 
