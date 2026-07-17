@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="description" content="書きなぐり - 思いついたことをサッと書くだけの超シンプルメモ">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>書きなぐり</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.jpg">
+  <link rel="icon" href="icon-192.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500&family=Caveat:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    :root {
+      --paper-bg: #fffef9;
+      --paper-line: #e8e4dc;
+      --paper-shadow: rgba(0, 0, 0, 0.08);
+      --ink: #2c2c2c;
+      --ink-light: #999;
+      --accent: #e07a5f;
+      --bg: #f0ece4;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      background: var(--bg);
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      padding-bottom: env(safe-area-inset-bottom, 16px);
+    }
+
+    /* ── Header ── */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      z-index: 100;
+    }
+
+    .app-title {
+      font-size: 14px;
+      color: var(--ink-light);
+      letter-spacing: 0.05em;
+      user-select: none;
+    }
+
+    .page-count {
+      font-size: 12px;
+      color: var(--ink-light);
+      opacity: 0.6;
+      user-select: none;
+      transition: opacity 0.3s;
+    }
+
+    /* ── Paper Stack ── */
+    .paper-stack {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      height: calc(100% - 100px);
+      perspective: 1200px;
+    }
+
+    .paper {
+      position: absolute;
+      inset: 0;
+      background: var(--paper-bg);
+      border-radius: 4px;
+      box-shadow:
+        0 1px 3px var(--paper-shadow),
+        0 4px 12px var(--paper-shadow);
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                  opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-origin: center bottom;
+      will-change: transform, opacity;
+    }
+
+    /* 下に重なってる紙っぽく */
+    .paper::before {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 4px;
+      right: 4px;
+      height: 6px;
+      background: var(--paper-bg);
+      border-radius: 0 0 4px 4px;
+      box-shadow: 0 2px 4px var(--paper-shadow);
+      z-index: -1;
+      opacity: 0.7;
+    }
+
+    .paper::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 8px;
+      right: 8px;
+      height: 6px;
+      background: var(--paper-bg);
+      border-radius: 0 0 4px 4px;
+      box-shadow: 0 2px 4px var(--paper-shadow);
+      z-index: -2;
+      opacity: 0.4;
+    }
+
+    .paper.flipping {
+      transform: rotateX(-25deg) translateY(-60px) scale(0.92);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .paper.entering {
+      transform: rotateX(15deg) translateY(30px) scale(1.02);
+      opacity: 0;
+    }
+
+    .paper-content {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .paper textarea {
+      width: 100%;
+      height: 100%;
+      border: none;
+      outline: none;
+      resize: none;
+      background: transparent;
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      font-size: 17px;
+      line-height: 2;
+      color: var(--ink);
+      padding: 28px 24px 24px;
+      /* 罫線 */
+      background-image: repeating-linear-gradient(
+        transparent,
+        transparent 33px,
+        var(--paper-line) 33px,
+        var(--paper-line) 34px
+      );
+      background-position-y: 27px;
+    }
+
+    .paper textarea::placeholder {
+      color: var(--ink-light);
+      opacity: 0.4;
+      font-style: italic;
+    }
+
+    .paper-date {
+      position: absolute;
+      bottom: 8px;
+      right: 12px;
+      font-size: 10px;
+      color: var(--ink-light);
+      opacity: 0.4;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    /* ── New Page Button ── */
+    .new-btn {
+      position: fixed;
+      bottom: max(24px, env(safe-area-inset-bottom, 24px));
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 28px;
+      cursor: pointer;
+      box-shadow:
+        0 4px 14px rgba(224, 122, 95, 0.35),
+        0 2px 4px rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+      z-index: 100;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .new-btn:active {
+      transform: scale(0.92);
+      box-shadow:
+        0 2px 8px rgba(224, 122, 95, 0.3),
+        0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .new-btn svg {
+      width: 24px;
+      height: 24px;
+      stroke: #fff;
+      stroke-width: 2.5;
+      fill: none;
+    }
+
+    /* ── Pages List (swipe up) ── */
+    .pages-hint {
+      position: fixed;
+      bottom: max(24px, env(safe-area-inset-bottom, 24px));
+      left: 24px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      z-index: 100;
+    }
+
+    .page-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ink);
+      opacity: 0.15;
+      transition: opacity 0.3s, transform 0.3s;
+      cursor: pointer;
+    }
+
+    .page-dot.active {
+      opacity: 0.5;
+      transform: scale(1.3);
+    }
+
+    /* ── Empty State ── */
+    .empty-state {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink-light);
+      opacity: 0.4;
+      pointer-events: none;
+      gap: 8px;
+    }
+
+    .empty-state svg {
+      width: 48px;
+      height: 48px;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      fill: none;
+      margin-bottom: 8px;
+    }
+
+    .empty-state span {
+      font-size: 14px;
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in {
+      animation: fadeIn 0.5s ease forwards;
+    }
+
+    /* ── Swipe nav indicator ── */
+    .swipe-indicator {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 40px;
+      border-radius: 2px;
+      background: var(--ink);
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+      z-index: 200;
+    }
+
+    .swipe-indicator.left { left: 4px; }
+    .swipe-indicator.right { right: 4px; }
+    .swipe-indicator.visible { opacity: 0.15; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <span class="app-title">書きなぐり</span>
+    <span class="page-count" id="pageCount"></span>
+  </div>
+
+  <!-- Paper -->
+  <div class="paper-stack" id="paperStack">
+    <div class="paper fade-in" id="currentPaper">
+      <div class="paper-content">
+        <textarea id="editor" placeholder="なんか書く..." autofocus></textarea>
+        <div class="paper-date" id="paperDate"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page dots -->
+  <div class="pages-hint" id="pagesHint"></div>
+
+  <!-- New page button -->
+  <button class="new-btn" id="newBtn" aria-label="新しいページ">
+    <svg viewBox="0 0 24 24">
+      <line x1="12" y1="5" x2="12" y2="19"></line>
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+  </button>
+
+  <!-- Swipe indicators -->
+  <div class="swipe-indicator left" id="swipeLeft"></div>
+  <div class="swipe-indicator right" id="swipeRight"></div>
+
+  <script>
+    // ── Storage ──
+    const STORAGE_KEY = 'kakinaguri_pages';
+    const EXPIRY_DAYS = 3;
+
+    function loadPages() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const pages = JSON.parse(raw);
+        const now = Date.now();
+        const cutoff = EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+        // 3日で消す
+        return pages.filter(p => (now - p.created) < cutoff);
+      } catch {
+        return [];
+      }
+    }
+
+    function savePages(pages) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pages));
+    }
+
+    function formatDate(ts) {
+      const d = new Date(ts);
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+      const hour = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${month}/${day} ${hour}:${min}`;
+    }
+
+    // ── State ──
+    let pages = loadPages();
+    let currentIndex = -1;
+
+    const editor = document.getElementById('editor');
+    const paperEl = document.getElementById('currentPaper');
+    const paperDate = document.getElementById('paperDate');
+    const pageCount = document.getElementById('pageCount');
+    const pagesHint = document.getElementById('pagesHint');
+    const newBtn = document.getElementById('newBtn');
+    const swipeLeft = document.getElementById('swipeLeft');
+    const swipeRight = document.getElementById('swipeRight');
+
+    // ── Init ──
+    function init() {
+      pages = loadPages();
+      if (pages.length === 0) {
+        addNewPage();
+      } else {
+        currentIndex = pages.length - 1;
+        showPage(currentIndex, false);
+      }
+    }
+
+    function addNewPage() {
+      // 今のページを保存
+      saveCurrent();
+
+      const newPage = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        text: '',
+        created: Date.now(),
+      };
+      pages.push(newPage);
+      currentIndex = pages.length - 1;
+      savePages(pages);
+
+      // アニメーション
+      flipToPage(currentIndex);
+    }
+
+    function saveCurrent() {
+      if (currentIndex >= 0 && currentIndex < pages.length) {
+        pages[currentIndex].text = editor.value;
+        savePages(pages);
+      }
+    }
+
+    function showPage(index, animate = true) {
+      if (index < 0 || index >= pages.length) return;
+
+      if (animate) {
+        flipToPage(index);
+      } else {
+        currentIndex = index;
+        const page = pages[currentIndex];
+        editor.value = page.text;
+        paperDate.textContent = formatDate(page.created);
+        updateUI();
+      }
+    }
+
+    function flipToPage(index) {
+      paperEl.classList.add('flipping');
+
+      setTimeout(() => {
+        currentIndex = index;
+        const page = pages[currentIndex];
+        editor.value = page.text;
+        paperDate.textContent = formatDate(page.created);
+        updateUI();
+
+        paperEl.classList.remove('flipping');
+        paperEl.classList.add('entering');
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            paperEl.classList.remove('entering');
+            editor.focus();
+          });
+        });
+      }, 300);
+    }
+
+    function updateUI() {
+      // Page count
+      pageCount.textContent = `${currentIndex + 1} / ${pages.length}`;
+
+      // Dots
+      const maxDots = 8;
+      const total = pages.length;
+      let html = '';
+
+      if (total <= maxDots) {
+        for (let i = 0; i < total; i++) {
+          html += `<div class="page-dot${i === currentIndex ? ' active' : ''}" data-idx="${i}"></div>`;
+        }
+      } else {
+        // Show subset around current
+        let start = Math.max(0, currentIndex - 3);
+        let end = Math.min(total, start + maxDots);
+        if (end - start < maxDots) start = Math.max(0, end - maxDots);
+        for (let i = start; i < end; i++) {
+          html += `<div class="page-dot${i === currentIndex ? ' active' : ''}" data-idx="${i}"></div>`;
+        }
+      }
+      pagesHint.innerHTML = html;
+
+      // Dot click handlers
+      pagesHint.querySelectorAll('.page-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+          const idx = parseInt(dot.dataset.idx);
+          if (idx !== currentIndex) {
+            saveCurrent();
+            showPage(idx);
+          }
+        });
+      });
+    }
+
+    // ── Events ──
+    newBtn.addEventListener('click', () => {
+      addNewPage();
+    });
+
+    // Auto-save on typing
+    let saveTimeout;
+    editor.addEventListener('input', () => {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(saveCurrent, 500);
+    });
+
+    // Swipe navigation
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isSwiping = false;
+
+    document.addEventListener('touchstart', (e) => {
+      // Don't intercept touches on the textarea for scrolling
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      isSwiping = false;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (!touchStartX) return;
+      const dx = e.touches[0].clientX - touchStartX;
+      const dy = e.touches[0].clientY - touchStartY;
+
+      // Only horizontal swipe
+      if (Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        isSwiping = true;
+        if (dx > 0 && currentIndex > 0) {
+          swipeLeft.classList.add('visible');
+        } else if (dx < 0 && currentIndex < pages.length - 1) {
+          swipeRight.classList.add('visible');
+        }
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+      swipeLeft.classList.remove('visible');
+      swipeRight.classList.remove('visible');
+
+      if (!isSwiping) return;
+
+      const dx = e.changedTouches[0].clientX - touchStartX;
+
+      if (Math.abs(dx) > 60) {
+        saveCurrent();
+        if (dx > 0 && currentIndex > 0) {
+          showPage(currentIndex - 1);
+        } else if (dx < 0 && currentIndex < pages.length - 1) {
+          showPage(currentIndex + 1);
+        }
+      }
+
+      touchStartX = 0;
+      isSwiping = false;
+    }, { passive: true });
+
+    // Save on blur / visibility change
+    document.addEventListener('visibilitychange', saveCurrent);
+    window.addEventListener('beforeunload', saveCurrent);
+
+    // Cleanup expired on load
+    init();
+  </script>
+</body>
+</html>
