@@ -243,6 +243,9 @@
       transform: translateY(4px) scale(0.96);
       transition: opacity 0.12s ease, transform 0.12s ease;
       pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
     }
 
     .format-bar.visible {
@@ -252,24 +255,27 @@
     }
 
     .format-btn {
-      min-width: 40px;
-      height: 34px;
-      padding: 0 10px;
+      min-width: 48px;
+      height: 44px;
+      padding: 0 12px;
       border: none;
       background: transparent;
       color: #fff;
-      border-radius: 9px;
+      border-radius: 10px;
       cursor: pointer;
       font-family: 'Zen Kaku Gothic New', sans-serif;
-      font-size: 15px;
+      font-size: 16px;
       line-height: 1;
       user-select: none;
       -webkit-user-select: none;
-      transition: background 0.15s;
+      /* タップをスクロール判定に取られないように */
+      touch-action: none;
+      transition: background 0.12s;
     }
 
-    .format-btn:active {
-      background: rgba(255, 255, 255, 0.18);
+    .format-btn:active,
+    .format-btn.pressed {
+      background: rgba(255, 255, 255, 0.28);
     }
 
     .format-btn.active {
@@ -682,6 +688,80 @@
       if (text) document.execCommand('insertText', false, text);
     });
 
+    // ── 左の余白をタップ → その行を丸ごと取り消し線 ──
+    // 選択もツールバーも要らない経路。片手でサッと消せる
+    const MARGIN_WIDTH = 36; // CSS の --margin-width と揃える
+    const STRIKE_TAGS = /^(S|STRIKE|DEL)$/;
+
+    // clientY の位置にある「行」（editor の直下の子）を探す
+    function blockAtY(clientY) {
+      for (const node of editor.childNodes) {
+        let rect;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const range = document.createRange();
+          range.selectNode(node);
+          rect = range.getBoundingClientRect();
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          rect = node.getBoundingClientRect();
+        }
+        if (rect && rect.height > 0 && clientY >= rect.top && clientY <= rect.bottom) {
+          return node;
+        }
+      }
+      return null;
+    }
+
+    function unwrap(el) {
+      const parent = el.parentNode;
+      while (el.firstChild) parent.insertBefore(el.firstChild, el);
+      el.remove();
+    }
+
+    function toggleStrikeOnBlock(node) {
+      if (!node) return false;
+
+      // 生のテキストノード（1行目がタグで包まれていない場合）
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (node.textContent.trim() === '') return false;
+        const range = document.createRange();
+        range.selectNode(node);
+        const s = document.createElement('s');
+        range.surroundContents(s);
+        return true;
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) return false;
+
+      // すでに消してある → 戻す
+      if (STRIKE_TAGS.test(node.tagName)) {
+        unwrap(node);
+        return true;
+      }
+      const only = node.childNodes.length === 1 ? node.firstChild : null;
+      if (only && only.nodeType === Node.ELEMENT_NODE && STRIKE_TAGS.test(only.tagName)) {
+        unwrap(only);
+        return true;
+      }
+
+      if (node.textContent.trim() === '') return false; // 空行は無視
+
+      const s = document.createElement('s');
+      while (node.firstChild) s.appendChild(node.firstChild);
+      node.appendChild(s);
+      return true;
+    }
+
+    editor.addEventListener('pointerdown', (e) => {
+      const rect = editor.getBoundingClientRect();
+      if (e.clientX - rect.left > MARGIN_WIDTH) return; // 余白の外なら普通に入力
+
+      e.preventDefault(); // カーソルを置かない
+      if (toggleStrikeOnBlock(blockAtY(e.clientY))) {
+        updateEmptyState();
+        scheduleSave();
+      }
+    });
+
     // ── Format Bar ──
     const FORMAT_BAR_GAP = 10;
 
@@ -694,8 +774,33 @@
       return range;
     }
 
-    function updateFormatBar() {
+    // 最後に選択していた範囲を覚えておく。
+    // ボタンを押した拍子に選択が外れても、これを戻してから書式をかける
+    let savedRange = null;
+    // 押している最中フラグ。true の間はバーを消さない
+    let barBusy = false;
+
+    function rememberSelection() {
       const range = selectionInsideEditor();
+      if (range) savedRange = range.cloneRange();
+      return range;
+    }
+
+    function restoreSelection() {
+      if (selectionInsideEditor()) return true;
+      if (!savedRange || !editor.contains(savedRange.commonAncestorContainer)) return false;
+      const sel = document.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+      return !!selectionInsideEditor();
+    }
+
+    function updateFormatBar() {
+      // ボタンを押している最中はバーを消さない
+      // （消すと pointer-events が切れて、タップが素通りしてしまう）
+      if (barBusy) return;
+
+      const range = rememberSelection();
       if (!range) {
         formatBar.classList.remove('visible');
         return;
@@ -720,9 +825,13 @@
       let left = rect.left + rect.width / 2 - barRect.width / 2;
       left = Math.max(8, Math.min(left, window.innerWidth - barRect.width - 8));
 
-      // 基本は選択の上。紙からはみ出すなら下に出す
-      let top = rect.top - barRect.height - FORMAT_BAR_GAP;
-      if (top < paperRect.top) top = rect.bottom + FORMAT_BAR_GAP;
+      // 基本は選択の「下」に出す。
+      // iOS が出す純正メニュー（コピー等）は選択の上に出るので、そこを避ける
+      let top = rect.bottom + FORMAT_BAR_GAP;
+      if (top + barRect.height > paperRect.bottom) {
+        top = rect.top - barRect.height - FORMAT_BAR_GAP;
+      }
+      top = Math.max(8, Math.min(top, window.innerHeight - barRect.height - 8));
 
       formatBar.style.left = left + 'px';
       formatBar.style.top = top + 'px';
@@ -739,31 +848,101 @@
     editor.addEventListener('scroll', queueFormatBarUpdate, { passive: true });
     window.addEventListener('resize', queueFormatBarUpdate);
 
+    // iOS では touchstart で preventDefault すると click が飛んでこない。
+    // なので click ではなく、押した/離した の対で処理する。
+    // pointer が使えるならそれだけを使う（touch と mouse の二重発火を避けるため）
     formatBar.querySelectorAll('.format-btn').forEach((btn) => {
-      // mousedown/touchstart を殺さないと、押した瞬間に選択が外れる
-      const keepSelection = (e) => e.preventDefault();
-      btn.addEventListener('mousedown', keepSelection);
-      btn.addEventListener('touchstart', keepSelection, { passive: false });
-
-      btn.addEventListener('click', (e) => {
+      const press = (e) => {
+        // これをやらないと、押した瞬間に選択が外れる
         e.preventDefault();
+        barBusy = true;
+        btn.classList.add('pressed');
+      };
+
+      const release = (e) => {
+        e.preventDefault();
+        btn.classList.remove('pressed');
         applyFormat(btn.dataset.cmd);
-      });
+        barBusy = false;
+        updateFormatBar();
+      };
+
+      if (window.PointerEvent) {
+        btn.addEventListener('pointerdown', press);
+        btn.addEventListener('pointerup', release);
+        btn.addEventListener('pointercancel', () => {
+          barBusy = false;
+          btn.classList.remove('pressed');
+        });
+      } else {
+        btn.addEventListener('touchstart', press, { passive: false });
+        btn.addEventListener('touchend', release, { passive: false });
+        btn.addEventListener('mousedown', press);
+        btn.addEventListener('mouseup', release);
+      }
+
+      // 保険。上で処理済みなので click は潰すだけ
+      btn.addEventListener('click', e => e.preventDefault());
     });
 
     function applyFormat(cmd) {
-      if (!selectionInsideEditor()) return;
-
+      // タップで選択が外れていたら、覚えておいた範囲を戻す
       editor.focus();
+      if (!restoreSelection()) return;
+
       try {
         // span+style ではなく <s> / <b> で入るようにする
         document.execCommand('styleWithCSS', false, false);
       } catch {}
-      document.execCommand(cmd, false, null);
 
+      let ok = false;
+      try {
+        ok = document.execCommand(cmd, false, null);
+      } catch {}
+
+      // execCommand が効かないブラウザ用の手動フォールバック
+      if (!ok && cmd !== 'removeFormat') {
+        ok = manualToggle(cmd);
+      }
+
+      rememberSelection();
       updateEmptyState();
       scheduleSave();
-      updateFormatBar();
+    }
+
+    // <s> / <b> を自分で付け外しする
+    function manualToggle(cmd) {
+      const tag = cmd === 'bold' ? 'B' : 'S';
+      const range = selectionInsideEditor();
+      if (!range) return false;
+
+      // すでにその書式の中にいるなら外す
+      let node = range.commonAncestorContainer;
+      while (node && node !== editor) {
+        if (node.nodeType === Node.ELEMENT_NODE && node.tagName === tag) {
+          const parent = node.parentNode;
+          while (node.firstChild) parent.insertBefore(node.firstChild, node);
+          node.remove();
+          return true;
+        }
+        node = node.parentNode;
+      }
+
+      const wrapper = document.createElement(tag);
+      try {
+        range.surroundContents(wrapper);
+      } catch {
+        // 選択がタグをまたいでいると surroundContents が使えない
+        wrapper.appendChild(range.extractContents());
+        range.insertNode(wrapper);
+      }
+
+      const sel = document.getSelection();
+      const next = document.createRange();
+      next.selectNodeContents(wrapper);
+      sel.removeAllRanges();
+      sel.addRange(next);
+      return true;
     }
 
     // ── Save (debounced) ──
