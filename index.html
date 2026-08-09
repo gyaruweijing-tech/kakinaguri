@@ -33,6 +33,8 @@
       --binding: #d4a574;
       --binding-dark: #b8895c;
       --line-height: 38px;
+      --margin-width: 36px;
+      --paper-top-pad: 12px;
     }
 
     html, body {
@@ -157,12 +159,24 @@
     }
 
     /* ── Lines Container ── */
+    /* 罫線は「紙に印刷されたもの」= 背景。行データの数とは無関係に常に見える */
     .lines-container {
       flex: 1;
       overflow-y: auto;
       overflow-x: hidden;
-      padding: 12px 0 60px 0;
+      padding: var(--paper-top-pad) 0 60px 0;
       -webkit-overflow-scrolling: touch;
+      cursor: text;
+      background-image:
+        linear-gradient(to right,
+          transparent 0 var(--margin-width),
+          rgba(224, 122, 95, 0.2) var(--margin-width) calc(var(--margin-width) + 1px),
+          transparent calc(var(--margin-width) + 1px)),
+        repeating-linear-gradient(to bottom,
+          transparent 0 calc(var(--line-height) - 1px),
+          var(--paper-line) calc(var(--line-height) - 1px) var(--line-height));
+      background-position: 0 0, 0 var(--paper-top-pad);
+      background-attachment: local;
     }
 
     .lines-container::-webkit-scrollbar {
@@ -173,22 +187,20 @@
     .line-item {
       display: flex;
       align-items: stretch;
-      min-height: var(--line-height);
+      height: var(--line-height);
       position: relative;
-      border-bottom: 1px solid var(--paper-line);
     }
 
     /* 左マージン（線を引くタップエリア） */
     .line-cross-btn {
-      width: 36px;
-      min-height: var(--line-height);
+      width: var(--margin-width);
+      height: var(--line-height);
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       flex-shrink: 0;
       position: relative;
-      border-right: 1px solid rgba(224, 122, 95, 0.2);
       user-select: none;
       -webkit-user-select: none;
     }
@@ -202,6 +214,11 @@
       border: 1.5px solid var(--ink-light);
       opacity: 0.3;
       transition: all 0.25s ease;
+    }
+
+    /* 空行のマーカーは出さない（紙が汚れて見えるので） */
+    .line-item.empty .line-cross-btn::after {
+      opacity: 0;
     }
 
     .line-item.crossed .line-cross-btn::after {
@@ -524,9 +541,13 @@
 
       linesContainer.innerHTML = '';
 
+      const frag = document.createDocumentFragment();
+
       page.lines.forEach((line, i) => {
         const item = document.createElement('div');
-        item.className = 'line-item' + (line.crossed ? ' crossed' : '');
+        item.className = 'line-item'
+          + (line.crossed ? ' crossed' : '')
+          + (line.text === '' ? ' empty' : '');
         item.dataset.index = i;
 
         // 左マージン（取り消しボタン）
@@ -534,7 +555,7 @@
         crossBtn.className = 'line-cross-btn';
         crossBtn.addEventListener('click', (e) => {
           e.preventDefault();
-          toggleCross(i);
+          toggleCross(indexOf(item));
         });
 
         // テキスト入力
@@ -542,67 +563,101 @@
         input.type = 'text';
         input.className = 'line-input';
         input.value = line.text;
-        if (i === page.lines.length - 1 && line.text === '') {
+        input.autocomplete = 'off';
+        input.autocapitalize = 'none';
+        input.spellcheck = false;
+        if (i === 0) {
           input.placeholder = 'なんか書く...';
         }
 
-        // 入力イベント
+        // 入力イベント：行は増やさない。データを更新するだけ。
+        // （ここで DOM を作り直すと日本語の変換中に文字が消える）
         input.addEventListener('input', () => {
-          page.lines[i].text = input.value;
+          const idx = indexOf(item);
+          if (idx < 0) return;
+          page.lines[idx].text = input.value;
+          item.classList.toggle('empty', input.value === '');
           scheduleSave();
-
-          // 最後の行に書いたら新しい空行を追加
-          if (i === page.lines.length - 1 && input.value !== '') {
-            page.lines.push({ text: '', crossed: false });
-            renderLines();
-            // 新しく追加した行ではなく、今の行にフォーカスを戻す
-            focusLine(i, input.value.length);
-          }
         });
 
         // キーボードイベント
         input.addEventListener('keydown', (e) => {
+          // 日本語変換中の Enter は「確定」なので行を分割しない
+          if (e.isComposing || e.keyCode === 229) return;
+
+          const idx = indexOf(item);
+          if (idx < 0) return;
+
           if (e.key === 'Enter') {
             e.preventDefault();
             // カーソル位置で行を分割
             const pos = input.selectionStart;
             const before = input.value.substring(0, pos);
             const after = input.value.substring(pos);
-            page.lines[i].text = before;
-            page.lines.splice(i + 1, 0, { text: after, crossed: false });
+            page.lines[idx].text = before;
+            page.lines.splice(idx + 1, 0, { text: after, crossed: false });
             renderLines();
-            focusLine(i + 1, 0);
+            focusLine(idx + 1, 0);
             scheduleSave();
-          } else if (e.key === 'Backspace' && input.selectionStart === 0 && input.selectionEnd === 0 && i > 0) {
+          } else if (e.key === 'Backspace' && input.selectionStart === 0 && input.selectionEnd === 0 && idx > 0) {
             e.preventDefault();
             // 前の行と結合
-            const prevText = page.lines[i - 1].text;
-            const curText = page.lines[i].text;
-            page.lines[i - 1].text = prevText + curText;
-            page.lines.splice(i, 1);
+            const prevText = page.lines[idx - 1].text;
+            const curText = page.lines[idx].text;
+            page.lines[idx - 1].text = prevText + curText;
+            page.lines.splice(idx, 1);
             renderLines();
-            focusLine(i - 1, prevText.length);
+            focusLine(idx - 1, prevText.length);
             scheduleSave();
+          } else if (e.key === 'ArrowUp' && idx > 0) {
+            e.preventDefault();
+            focusLine(idx - 1, page.lines[idx - 1].text.length);
+          } else if (e.key === 'ArrowDown' && idx < page.lines.length - 1) {
+            e.preventDefault();
+            focusLine(idx + 1, page.lines[idx + 1].text.length);
           }
         });
 
         item.appendChild(crossBtn);
         item.appendChild(input);
-        linesContainer.appendChild(item);
+        frag.appendChild(item);
       });
+
+      linesContainer.appendChild(frag);
     }
 
+    // 行の現在位置を DOM から取る（splice で番号がずれるため）
+    function indexOf(item) {
+      return Array.prototype.indexOf.call(linesContainer.children, item);
+    }
+
+    // 罫線の余白をタップ → 最終行へ。埋まっていれば1行足す
+    function appendLineFromBlankTap() {
+      const page = pages[currentIndex];
+      if (!page) return;
+
+      const last = page.lines[page.lines.length - 1];
+      if (last && last.text === '') {
+        focusLine(page.lines.length - 1, 0);
+        return;
+      }
+      page.lines.push({ text: '', crossed: false });
+      renderLines();
+      focusLine(page.lines.length - 1, 0);
+      scheduleSave();
+    }
+
+    // 同期でフォーカスする（1フレーム遅らせると、その間の打鍵が消える／
+    // iOS でキーボードが閉じてしまう）
     function focusLine(index, cursorPos) {
-      requestAnimationFrame(() => {
-        const items = linesContainer.querySelectorAll('.line-item');
-        if (items[index]) {
-          const input = items[index].querySelector('.line-input');
-          input.focus();
-          if (typeof cursorPos === 'number') {
-            input.setSelectionRange(cursorPos, cursorPos);
-          }
-        }
-      });
+      const items = linesContainer.querySelectorAll('.line-item');
+      if (!items[index]) return;
+      const input = items[index].querySelector('.line-input');
+      input.focus();
+      if (typeof cursorPos === 'number') {
+        input.setSelectionRange(cursorPos, cursorPos);
+      }
+      input.scrollIntoView({ block: 'nearest' });
     }
 
     function toggleCross(index) {
@@ -722,6 +777,10 @@
     }
 
     // ── Events ──
+    linesContainer.addEventListener('click', (e) => {
+      if (e.target === linesContainer) appendLineFromBlankTap();
+    });
+
     newBtn.addEventListener('click', addNewPage);
     trashBtn.addEventListener('click', deletePage);
 
