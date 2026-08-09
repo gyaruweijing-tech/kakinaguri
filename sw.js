@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kakinaguri-v2';
+const CACHE_NAME = 'kakinaguri-v3';
 const ASSETS = [
   './',
   './index.html',
