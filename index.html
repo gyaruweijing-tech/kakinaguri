@@ -158,15 +158,26 @@
       pointer-events: none;
     }
 
-    /* ── Lines Container ── */
-    /* 罫線は「紙に印刷されたもの」= 背景。行データの数とは無関係に常に見える */
-    .lines-container {
+    /* ── Editor（紙1枚 = テキスト1つ）── */
+    /* 罫線は「紙に印刷されたもの」= 背景。文字数とは無関係に常に見える */
+    .editor {
       flex: 1;
+      position: relative;
       overflow-y: auto;
       overflow-x: hidden;
-      padding: var(--paper-top-pad) 0 60px 0;
+      outline: none;
+      padding: var(--paper-top-pad) 14px 60px calc(var(--margin-width) + 14px);
       -webkit-overflow-scrolling: touch;
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      font-size: 16px;
+      line-height: var(--line-height);
+      color: var(--ink);
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
       cursor: text;
+      -webkit-user-select: text;
+      user-select: text;
       background-image:
         linear-gradient(to right,
           transparent 0 var(--margin-width),
@@ -179,97 +190,101 @@
       background-attachment: local;
     }
 
-    .lines-container::-webkit-scrollbar {
+    .editor::-webkit-scrollbar {
       display: none;
     }
 
-    /* ── Line Item ── */
-    .line-item {
-      display: flex;
-      align-items: stretch;
-      height: var(--line-height);
-      position: relative;
-    }
-
-    /* 左マージン（線を引くタップエリア） */
-    .line-cross-btn {
-      width: var(--margin-width);
-      height: var(--line-height);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      flex-shrink: 0;
-      position: relative;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-
-    .line-cross-btn::after {
-      content: '';
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: transparent;
-      border: 1.5px solid var(--ink-light);
-      opacity: 0.3;
-      transition: all 0.25s ease;
-    }
-
-    /* 空行のマーカーは出さない（紙が汚れて見えるので） */
-    .line-item.empty .line-cross-btn::after {
-      opacity: 0;
-    }
-
-    .line-item.crossed .line-cross-btn::after {
-      background: var(--accent);
-      border-color: var(--accent);
-      opacity: 0.6;
-      transform: scale(0.85);
-    }
-
-    .line-cross-btn:active::after {
-      transform: scale(1.3);
-    }
-
-    /* テキスト入力 */
-    .line-input {
-      flex: 1;
-      border: none;
-      outline: none;
-      background: transparent;
-      font-family: 'Zen Kaku Gothic New', sans-serif;
-      font-size: 16px;
+    /* 行間が罫線とずれないように、中の要素に余白を持たせない */
+    .editor div,
+    .editor p {
+      margin: 0;
+      padding: 0;
       line-height: var(--line-height);
-      height: var(--line-height);
-      color: var(--ink);
-      padding: 0 14px;
-      min-width: 0;
-      transition: color 0.3s, opacity 0.3s;
     }
 
-    .line-input::placeholder {
+    .editor[data-empty="true"]::before {
+      content: 'なんか書く...';
+      position: absolute;
       color: var(--ink-light);
-      opacity: 0.3;
+      opacity: 0.4;
+      pointer-events: none;
     }
 
-    /* 取り消し線 */
-    .line-item.crossed .line-input {
+    /* ── 書式 ── */
+    .editor s,
+    .editor strike,
+    .editor del {
       text-decoration: line-through;
       text-decoration-color: var(--ink-crossed);
       text-decoration-thickness: 1.5px;
       color: var(--ink-crossed);
-      opacity: 0.6;
     }
 
-    /* 取り消し線アニメーション */
-    @keyframes strikeAnim {
-      from { clip-path: inset(0 100% 0 0); }
-      to { clip-path: inset(0 0 0 0); }
+    .editor b,
+    .editor strong {
+      font-weight: 500;
+      color: #000;
     }
 
-    .line-item.crossing .line-input {
-      animation: strikeAnim 0.3s ease forwards;
+    /* ── Format Bar（選択すると出るやつ）── */
+    .format-bar {
+      position: fixed;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 4px;
+      border-radius: 12px;
+      background: rgba(44, 44, 44, 0.94);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+      z-index: 300;
+      opacity: 0;
+      transform: translateY(4px) scale(0.96);
+      transition: opacity 0.12s ease, transform 0.12s ease;
+      pointer-events: none;
+    }
+
+    .format-bar.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    .format-btn {
+      min-width: 40px;
+      height: 34px;
+      padding: 0 10px;
+      border: none;
+      background: transparent;
+      color: #fff;
+      border-radius: 9px;
+      cursor: pointer;
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      font-size: 15px;
+      line-height: 1;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: background 0.15s;
+    }
+
+    .format-btn:active {
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    .format-btn.active {
+      background: rgba(255, 255, 255, 0.22);
+    }
+
+    .format-btn.strike { text-decoration: line-through; }
+    .format-btn.bold { font-weight: 500; }
+    .format-btn.clear { font-size: 12px; opacity: 0.7; }
+
+    .format-divider {
+      width: 1px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.18);
+      margin: 0 2px;
     }
 
     /* ── Trash Button ── */
@@ -444,9 +459,29 @@
           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
         </svg>
       </button>
-      <div class="lines-container" id="linesContainer"></div>
+      <div
+        class="editor"
+        id="editor"
+        contenteditable="true"
+        role="textbox"
+        aria-multiline="true"
+        aria-label="メモ"
+        spellcheck="false"
+        autocapitalize="none"
+        autocorrect="off"
+        enterkeyhint="enter"
+        data-empty="true"
+      ></div>
       <div class="paper-date" id="paperDate"></div>
     </div>
+  </div>
+
+  <!-- 選択したときに出る書式バー -->
+  <div class="format-bar" id="formatBar">
+    <button class="format-btn strike" data-cmd="strikeThrough" aria-label="取り消し線">S</button>
+    <button class="format-btn bold" data-cmd="bold" aria-label="太字">B</button>
+    <div class="format-divider"></div>
+    <button class="format-btn clear" data-cmd="removeFormat" aria-label="書式を消す">解除</button>
   </div>
 
   <!-- Navigation Bar -->
@@ -492,15 +527,78 @@
       }
     }
 
-    // 旧フォーマット(text) → 新フォーマット(lines)に移行
+    // ── 書式まわり ──
+    // 残す；それ以外は中身のテキストだけ拾って捨てる
+    const ALLOWED_TAGS = new Set(['DIV', 'BR', 'S', 'STRIKE', 'DEL', 'B', 'STRONG', 'I', 'EM', 'U', 'P', 'SPAN']);
+    // 中身ごと消すやつ
+    const DROP_TAGS = new Set([
+      'SCRIPT', 'STYLE', 'TEMPLATE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'IMG', 'VIDEO',
+      'AUDIO', 'LINK', 'META', 'SVG', 'MATH', 'CANVAS', 'FORM', 'INPUT', 'BUTTON', 'TEXTAREA',
+    ]);
+
+    // 保存された HTML はそのまま信用せず、タグと属性を洗ってから使う
+    function sanitizeHTML(html) {
+      const doc = document.implementation.createHTMLDocument('');
+      doc.body.innerHTML = String(html || '');
+
+      (function walk(node) {
+        Array.from(node.childNodes).forEach((child) => {
+          if (child.nodeType === Node.TEXT_NODE) return;
+          if (child.nodeType !== Node.ELEMENT_NODE) {
+            child.remove();
+            return;
+          }
+          const tag = child.tagName.toUpperCase();
+          if (DROP_TAGS.has(tag)) {
+            child.remove();
+            return;
+          }
+          if (!ALLOWED_TAGS.has(tag)) {
+            // 見出しやリストなど → 中のテキストだけ残す
+            walk(child);
+            const parent = child.parentNode;
+            while (child.firstChild) parent.insertBefore(child.firstChild, child);
+            child.remove();
+            return;
+          }
+          Array.from(child.attributes).forEach(attr => child.removeAttribute(attr.name));
+          walk(child);
+        });
+      })(doc.body);
+
+      return doc.body.innerHTML;
+    }
+
+    function escapeHTML(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // 旧フォーマット → html 1本に移行
+    //   v1: page.text   … 改行区切りのプレーンテキスト
+    //   v2: page.lines  … [{ text, crossed }]（crossed 行は <s> にする）
     function migratePage(page) {
-      if (page.lines) return page;
-      const text = page.text || '';
-      const lineTexts = text.split('\n');
-      page.lines = lineTexts.map(t => ({ text: t, crossed: false }));
-      if (page.lines.length === 0 || page.lines[page.lines.length - 1].text !== '') {
-        page.lines.push({ text: '', crossed: false });
+      if (typeof page.html === 'string') {
+        page.html = sanitizeHTML(page.html);
+        return page;
       }
+
+      let lines;
+      if (Array.isArray(page.lines)) {
+        lines = page.lines.map(l => ({ text: l.text || '', crossed: !!l.crossed }));
+      } else {
+        lines = String(page.text || '').split('\n').map(t => ({ text: t, crossed: false }));
+      }
+
+      page.html = lines
+        .map((l) => {
+          const body = l.text === '' ? '<br>' : escapeHTML(l.text);
+          return '<div>' + (l.crossed && l.text !== '' ? '<s>' + body + '</s>' : body) + '</div>';
+        })
+        .join('');
+
+      delete page.lines;
       delete page.text;
       return page;
     }
@@ -524,7 +622,8 @@
     let isAnimating = false;
 
     const paperEl = document.getElementById('currentPaper');
-    const linesContainer = document.getElementById('linesContainer');
+    const editor = document.getElementById('editor');
+    const formatBar = document.getElementById('formatBar');
     const paperDate = document.getElementById('paperDate');
     const navIndicator = document.getElementById('navIndicator');
     const prevBtn = document.getElementById('prevBtn');
@@ -534,170 +633,151 @@
     const swipeLeft = document.getElementById('swipeLeft');
     const swipeRight = document.getElementById('swipeRight');
 
-    // ── Render Lines ──
-    function renderLines() {
+    // ── Editor ──
+    function renderEditor() {
       const page = pages[currentIndex];
       if (!page) return;
-
-      linesContainer.innerHTML = '';
-
-      const frag = document.createDocumentFragment();
-
-      page.lines.forEach((line, i) => {
-        const item = document.createElement('div');
-        item.className = 'line-item'
-          + (line.crossed ? ' crossed' : '')
-          + (line.text === '' ? ' empty' : '');
-        item.dataset.index = i;
-
-        // 左マージン（取り消しボタン）
-        const crossBtn = document.createElement('div');
-        crossBtn.className = 'line-cross-btn';
-        crossBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          toggleCross(indexOf(item));
-        });
-
-        // テキスト入力
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'line-input';
-        input.value = line.text;
-        input.autocomplete = 'off';
-        input.autocapitalize = 'none';
-        input.spellcheck = false;
-        if (i === 0) {
-          input.placeholder = 'なんか書く...';
-        }
-
-        // 入力イベント：行は増やさない。データを更新するだけ。
-        // （ここで DOM を作り直すと日本語の変換中に文字が消える）
-        input.addEventListener('input', () => {
-          const idx = indexOf(item);
-          if (idx < 0) return;
-          page.lines[idx].text = input.value;
-          item.classList.toggle('empty', input.value === '');
-          scheduleSave();
-        });
-
-        // キーボードイベント
-        input.addEventListener('keydown', (e) => {
-          // 日本語変換中の Enter は「確定」なので行を分割しない
-          if (e.isComposing || e.keyCode === 229) return;
-
-          const idx = indexOf(item);
-          if (idx < 0) return;
-
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            // カーソル位置で行を分割
-            const pos = input.selectionStart;
-            const before = input.value.substring(0, pos);
-            const after = input.value.substring(pos);
-            page.lines[idx].text = before;
-            page.lines.splice(idx + 1, 0, { text: after, crossed: false });
-            renderLines();
-            focusLine(idx + 1, 0);
-            scheduleSave();
-          } else if (e.key === 'Backspace' && input.selectionStart === 0 && input.selectionEnd === 0 && idx > 0) {
-            e.preventDefault();
-            // 前の行と結合
-            const prevText = page.lines[idx - 1].text;
-            const curText = page.lines[idx].text;
-            page.lines[idx - 1].text = prevText + curText;
-            page.lines.splice(idx, 1);
-            renderLines();
-            focusLine(idx - 1, prevText.length);
-            scheduleSave();
-          } else if (e.key === 'ArrowUp' && idx > 0) {
-            e.preventDefault();
-            focusLine(idx - 1, page.lines[idx - 1].text.length);
-          } else if (e.key === 'ArrowDown' && idx < page.lines.length - 1) {
-            e.preventDefault();
-            focusLine(idx + 1, page.lines[idx + 1].text.length);
-          }
-        });
-
-        item.appendChild(crossBtn);
-        item.appendChild(input);
-        frag.appendChild(item);
-      });
-
-      linesContainer.appendChild(frag);
+      editor.innerHTML = page.html || '';
+      updateEmptyState();
+      editor.scrollTop = 0;
     }
 
-    // 行の現在位置を DOM から取る（splice で番号がずれるため）
-    function indexOf(item) {
-      return Array.prototype.indexOf.call(linesContainer.children, item);
+    function updateEmptyState() {
+      editor.dataset.empty = editor.textContent.trim() === '' ? 'true' : 'false';
     }
 
-    // 罫線の余白をタップ → 最終行へ。埋まっていれば1行足す
-    function appendLineFromBlankTap() {
-      const page = pages[currentIndex];
-      if (!page) return;
+    // 末尾にカーソルを置く
+    function focusEditorEnd() {
+      editor.focus();
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      const sel = document.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
 
-      const last = page.lines[page.lines.length - 1];
-      if (last && last.text === '') {
-        focusLine(page.lines.length - 1, 0);
+    // Enter は素の contenteditable に任せる（改行が入るだけ）。
+    // ただし段落区切りは <div> に統一しておく（ブラウザ差で余白が出るのを防ぐ）
+    try {
+      document.execCommand('defaultParagraphSeparator', false, 'div');
+    } catch {}
+
+    editor.addEventListener('input', () => {
+      updateEmptyState();
+      scheduleSave();
+    });
+
+    // 貼り付けはプレーンテキストだけ受け取る（他所の書式を持ち込ませない）
+    editor.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+
+    // ドロップも同じ扱い
+    editor.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const text = e.dataTransfer && e.dataTransfer.getData('text/plain');
+      if (text) document.execCommand('insertText', false, text);
+    });
+
+    // ── Format Bar ──
+    const FORMAT_BAR_GAP = 10;
+
+    function selectionInsideEditor() {
+      const sel = document.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+      const range = sel.getRangeAt(0);
+      if (!editor.contains(range.commonAncestorContainer)) return null;
+      if (range.toString().trim() === '') return null;
+      return range;
+    }
+
+    function updateFormatBar() {
+      const range = selectionInsideEditor();
+      if (!range) {
+        formatBar.classList.remove('visible');
         return;
       }
-      page.lines.push({ text: '', crossed: false });
-      renderLines();
-      focusLine(page.lines.length - 1, 0);
-      scheduleSave();
-    }
 
-    // 同期でフォーカスする（1フレーム遅らせると、その間の打鍵が消える／
-    // iOS でキーボードが閉じてしまう）
-    function focusLine(index, cursorPos) {
-      const items = linesContainer.querySelectorAll('.line-item');
-      if (!items[index]) return;
-      const input = items[index].querySelector('.line-input');
-      input.focus();
-      if (typeof cursorPos === 'number') {
-        input.setSelectionRange(cursorPos, cursorPos);
-      }
-      input.scrollIntoView({ block: 'nearest' });
-    }
-
-    function toggleCross(index) {
-      const page = pages[currentIndex];
-      if (!page || !page.lines[index]) return;
-
-      page.lines[index].crossed = !page.lines[index].crossed;
-
-      const items = linesContainer.querySelectorAll('.line-item');
-      if (items[index]) {
-        if (page.lines[index].crossed) {
-          items[index].classList.add('crossing');
-          items[index].classList.add('crossed');
-          setTimeout(() => items[index].classList.remove('crossing'), 300);
-        } else {
-          items[index].classList.remove('crossed');
-          items[index].classList.remove('crossing');
+      // ボタンの ON/OFF 表示
+      formatBar.querySelectorAll('.format-btn').forEach((btn) => {
+        const cmd = btn.dataset.cmd;
+        let on = false;
+        if (cmd !== 'removeFormat') {
+          try { on = document.queryCommandState(cmd); } catch {}
         }
-      }
+        btn.classList.toggle('active', on);
+      });
 
+      formatBar.classList.add('visible');
+
+      const rect = range.getBoundingClientRect();
+      const barRect = formatBar.getBoundingClientRect();
+      const paperRect = editor.getBoundingClientRect();
+
+      let left = rect.left + rect.width / 2 - barRect.width / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - barRect.width - 8));
+
+      // 基本は選択の上。紙からはみ出すなら下に出す
+      let top = rect.top - barRect.height - FORMAT_BAR_GAP;
+      if (top < paperRect.top) top = rect.bottom + FORMAT_BAR_GAP;
+
+      formatBar.style.left = left + 'px';
+      formatBar.style.top = top + 'px';
+    }
+
+    let formatBarRaf = 0;
+    function queueFormatBarUpdate() {
+      cancelAnimationFrame(formatBarRaf);
+      formatBarRaf = requestAnimationFrame(updateFormatBar);
+    }
+
+    document.addEventListener('selectionchange', queueFormatBarUpdate);
+    // スクロールすると選択範囲が動くので、バーも追従させる
+    editor.addEventListener('scroll', queueFormatBarUpdate, { passive: true });
+    window.addEventListener('resize', queueFormatBarUpdate);
+
+    formatBar.querySelectorAll('.format-btn').forEach((btn) => {
+      // mousedown/touchstart を殺さないと、押した瞬間に選択が外れる
+      const keepSelection = (e) => e.preventDefault();
+      btn.addEventListener('mousedown', keepSelection);
+      btn.addEventListener('touchstart', keepSelection, { passive: false });
+
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        applyFormat(btn.dataset.cmd);
+      });
+    });
+
+    function applyFormat(cmd) {
+      if (!selectionInsideEditor()) return;
+
+      editor.focus();
+      try {
+        // span+style ではなく <s> / <b> で入るようにする
+        document.execCommand('styleWithCSS', false, false);
+      } catch {}
+      document.execCommand(cmd, false, null);
+
+      updateEmptyState();
       scheduleSave();
+      updateFormatBar();
     }
 
     // ── Save (debounced) ──
     let saveTimeout;
     function scheduleSave() {
       clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(() => savePages(pages), 400);
+      saveTimeout = setTimeout(saveCurrent, 400);
     }
 
+    // エディタの中身をページに書き戻して保存する
     function saveCurrent() {
-      // lines の値を DOM から同期
+      clearTimeout(saveTimeout);
       if (currentIndex >= 0 && currentIndex < pages.length) {
-        const inputs = linesContainer.querySelectorAll('.line-input');
-        const page = pages[currentIndex];
-        inputs.forEach((input, i) => {
-          if (page.lines[i]) {
-            page.lines[i].text = input.value;
-          }
-        });
+        pages[currentIndex].html = sanitizeHTML(editor.innerHTML);
         savePages(pages);
       }
     }
@@ -707,6 +787,11 @@
       if (index < 0 || index >= pages.length || isAnimating) return;
 
       saveCurrent();
+      formatBar.classList.remove('visible');
+
+      // 書いてる途中でページを移ったら、移った先でもそのまま書けるようにする
+      // （スマホでキーボードが閉じないように）
+      const wasWriting = document.activeElement === editor;
 
       isAnimating = true;
       paperEl.classList.add('switching');
@@ -716,13 +801,14 @@
         renderCurrentPage();
         paperEl.classList.remove('switching');
         isAnimating = false;
+        if (wasWriting) focusEditorEnd();
       }, 150);
     }
 
     function renderCurrentPage() {
       const page = pages[currentIndex];
       paperDate.textContent = formatDate(page.created);
-      renderLines();
+      renderEditor();
       updateNav();
     }
 
@@ -732,7 +818,7 @@
 
       const newPage = {
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        lines: [{ text: '', crossed: false }],
+        html: '',
         created: Date.now(),
       };
       pages.push(newPage);
@@ -746,10 +832,12 @@
 
       if (pages.length <= 1) {
         // 最後の1枚 → 中身だけ消す
-        pages[currentIndex].lines = [{ text: '', crossed: false }];
-        renderLines();
-        focusLine(0);
+        const wasWriting = document.activeElement === editor;
+        pages[currentIndex].html = '';
+        renderEditor();
+        formatBar.classList.remove('visible');
         savePages(pages);
+        if (wasWriting) focusEditorEnd();
         return;
       }
 
@@ -777,10 +865,6 @@
     }
 
     // ── Events ──
-    linesContainer.addEventListener('click', (e) => {
-      if (e.target === linesContainer) appendLineFromBlankTap();
-    });
-
     newBtn.addEventListener('click', addNewPage);
     trashBtn.addEventListener('click', deletePage);
 
@@ -823,6 +907,13 @@
       swipeRight.classList.remove('visible');
 
       if (!isSwiping) return;
+
+      // 文字を選択している最中のドラッグでページをめくらない
+      if (selectionInsideEditor()) {
+        touchStartX = 0;
+        isSwiping = false;
+        return;
+      }
 
       const dx = e.changedTouches[0].clientX - touchStartX;
 
