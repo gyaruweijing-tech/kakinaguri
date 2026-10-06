@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="description" content="書きなぐり - 思いついたことをサッと書くだけの超シンプルメモ">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>書きなぐり</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.jpg">
+  <link rel="icon" href="icon-192.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    :root {
+      --paper-bg: #fffef9;
+      --paper-line: #e0dbd3;
+      --paper-shadow: rgba(0, 0, 0, 0.08);
+      --ink: #2c2c2c;
+      --ink-light: #aaa;
+      --ink-crossed: #c4c0b8;
+      --accent: #e07a5f;
+      --accent-shadow: rgba(224, 122, 95, 0.35);
+      --bg: #f0ece4;
+      --binding: #d4a574;
+      --binding-dark: #b8895c;
+      --line-height: 38px;
+      --margin-width: 36px;
+      --paper-top-pad: 12px;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      background: var(--bg);
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      padding-bottom: env(safe-area-inset-bottom, 12px);
+    }
+
+    /* ── Header ── */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 20px;
+      z-index: 100;
+    }
+
+    .app-title {
+      font-size: 13px;
+      color: var(--ink-light);
+      letter-spacing: 0.08em;
+      user-select: none;
+    }
+
+    /* ── Paper Wrapper ── */
+    .paper-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      height: calc(100% - 100px);
+      margin-top: 36px;
+    }
+
+    /* ── Notepad Binding (top) ── */
+    .notepad-binding {
+      position: absolute;
+      top: -6px;
+      left: 8px;
+      right: 8px;
+      height: 14px;
+      background: linear-gradient(180deg, var(--binding-dark) 0%, var(--binding) 40%, var(--binding-dark) 100%);
+      border-radius: 3px 3px 0 0;
+      z-index: 10;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+    }
+
+    .notepad-binding::after {
+      content: '';
+      position: absolute;
+      bottom: -3px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.06), transparent);
+    }
+
+    /* ── Paper ── */
+    .paper {
+      position: absolute;
+      inset: 0;
+      top: 6px;
+      background: var(--paper-bg);
+      border-radius: 0 0 4px 4px;
+      box-shadow:
+        0 1px 3px var(--paper-shadow),
+        0 4px 12px var(--paper-shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform-origin: top center;
+      will-change: transform, opacity;
+    }
+
+    /* 紙の重なり */
+    .paper::before {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 4px;
+      right: 4px;
+      height: 6px;
+      background: var(--paper-bg);
+      border-radius: 0 0 4px 4px;
+      box-shadow: 0 2px 4px var(--paper-shadow);
+      z-index: -1;
+      opacity: 0.7;
+    }
+
+    .paper::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 8px;
+      right: 8px;
+      height: 6px;
+      background: var(--paper-bg);
+      border-radius: 0 0 4px 4px;
+      box-shadow: 0 2px 4px var(--paper-shadow);
+      z-index: -2;
+      opacity: 0.4;
+    }
+
+    /* ── Page transition (シンプルなフェード) ── */
+    .paper.switching {
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      pointer-events: none;
+    }
+
+    /* ── Editor（紙1枚 = テキスト1つ）── */
+    /* 罫線は「紙に印刷されたもの」= 背景。文字数とは無関係に常に見える */
+    .editor {
+      flex: 1;
+      position: relative;
+      overflow-y: auto;
+      overflow-x: hidden;
+      outline: none;
+      padding: var(--paper-top-pad) 14px 60px calc(var(--margin-width) + 14px);
+      -webkit-overflow-scrolling: touch;
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      font-size: 16px;
+      line-height: var(--line-height);
+      color: var(--ink);
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      cursor: text;
+      -webkit-user-select: text;
+      user-select: text;
+      background-image:
+        linear-gradient(to right,
+          transparent 0 var(--margin-width),
+          rgba(224, 122, 95, 0.2) var(--margin-width) calc(var(--margin-width) + 1px),
+          transparent calc(var(--margin-width) + 1px)),
+        repeating-linear-gradient(to bottom,
+          transparent 0 calc(var(--line-height) - 1px),
+          var(--paper-line) calc(var(--line-height) - 1px) var(--line-height));
+      background-position: 0 0, 0 var(--paper-top-pad);
+      background-attachment: local;
+    }
+
+    .editor::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* 行間が罫線とずれないように、中の要素に余白を持たせない */
+    .editor div,
+    .editor p {
+      margin: 0;
+      padding: 0;
+      line-height: var(--line-height);
+    }
+
+    .editor[data-empty="true"]::before {
+      content: 'なんか書く...';
+      position: absolute;
+      color: var(--ink-light);
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    /* ── 書式 ── */
+    .editor s,
+    .editor strike,
+    .editor del {
+      text-decoration: line-through;
+      text-decoration-color: var(--ink-crossed);
+      text-decoration-thickness: 1.5px;
+      color: var(--ink-crossed);
+    }
+
+    .editor b,
+    .editor strong {
+      font-weight: 500;
+      color: #000;
+    }
+
+    /* ── Format Bar（選択すると出るやつ）── */
+    .format-bar {
+      position: fixed;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 4px;
+      border-radius: 12px;
+      background: rgba(44, 44, 44, 0.94);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+      z-index: 300;
+      opacity: 0;
+      transform: translateY(4px) scale(0.96);
+      transition: opacity 0.12s ease, transform 0.12s ease;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+
+    .format-bar.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    .format-btn {
+      min-width: 48px;
+      height: 44px;
+      padding: 0 12px;
+      border: none;
+      background: transparent;
+      color: #fff;
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      font-size: 16px;
+      line-height: 1;
+      user-select: none;
+      -webkit-user-select: none;
+      /* タップをスクロール判定に取られないように */
+      touch-action: none;
+      transition: background 0.12s;
+    }
+
+    .format-btn:active,
+    .format-btn.pressed {
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    .format-btn.active {
+      background: rgba(255, 255, 255, 0.22);
+    }
+
+    .format-btn.strike { text-decoration: line-through; }
+    .format-btn.bold { font-weight: 500; }
+    .format-btn.clear { font-size: 12px; opacity: 0.7; }
+
+    .format-divider {
+      width: 1px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.18);
+      margin: 0 2px;
+    }
+
+    /* ── Trash Button ── */
+    .trash-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      opacity: 0.2;
+      transition: opacity 0.2s, background 0.2s;
+      z-index: 10;
+      user-select: none;
+    }
+
+    .trash-btn:active {
+      opacity: 0.6;
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .trash-btn svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--ink);
+      stroke-width: 1.8;
+      fill: none;
+    }
+
+    /* ── Paper Date ── */
+    .paper-date {
+      position: absolute;
+      bottom: 6px;
+      right: 10px;
+      font-size: 10px;
+      color: var(--ink-light);
+      opacity: 0.35;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    /* ── Bottom Nav Bar ── */
+    .nav-bar {
+      position: fixed;
+      bottom: max(12px, env(safe-area-inset-bottom, 12px));
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 100;
+      background: rgba(255, 254, 249, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 6px 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+    }
+
+    .nav-btn {
+      width: 40px;
+      height: 40px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      transition: background 0.15s, opacity 0.15s;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .nav-btn:active {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.2;
+      cursor: default;
+    }
+
+    .nav-btn:disabled:active {
+      background: transparent;
+    }
+
+    .nav-btn svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--ink);
+      stroke-width: 2;
+      fill: none;
+    }
+
+    .nav-indicator {
+      font-size: 12px;
+      color: var(--ink);
+      opacity: 0.5;
+      min-width: 40px;
+      text-align: center;
+      user-select: none;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .nav-divider {
+      width: 1px;
+      height: 20px;
+      background: rgba(0, 0, 0, 0.08);
+      margin: 0 2px;
+    }
+
+    .nav-btn.accent svg {
+      stroke: var(--accent);
+      stroke-width: 2.5;
+    }
+
+    .nav-btn.danger svg {
+      stroke: #c4756a;
+    }
+
+    /* ── Swipe indicators ── */
+    .swipe-indicator {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 40px;
+      border-radius: 2px;
+      background: var(--ink);
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+      z-index: 200;
+    }
+
+    .swipe-indicator.left { left: 4px; }
+    .swipe-indicator.right { right: 4px; }
+    .swipe-indicator.visible { opacity: 0.15; }
+
+    /* ── Animations ── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in {
+      animation: fadeIn 0.4s ease forwards;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <span class="app-title">書きなぐり</span>
+  </div>
+
+  <!-- Paper -->
+  <div class="paper-wrapper" id="paperWrapper">
+    <div class="notepad-binding"></div>
+    <div class="paper fade-in" id="currentPaper">
+      <button class="trash-btn" id="trashBtn" aria-label="このページを捨てる">
+        <svg viewBox="0 0 24 24">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+      </button>
+      <div
+        class="editor"
+        id="editor"
+        contenteditable="true"
+        role="textbox"
+        aria-multiline="true"
+        aria-label="メモ"
+        spellcheck="false"
+        autocapitalize="none"
+        autocorrect="off"
+        enterkeyhint="enter"
+        data-empty="true"
+      ></div>
+      <div class="paper-date" id="paperDate"></div>
+    </div>
+  </div>
+
+  <!-- 選択したときに出る書式バー -->
+  <div class="format-bar" id="formatBar">
+    <button class="format-btn strike" data-cmd="strikeThrough" aria-label="取り消し線">S</button>
+    <button class="format-btn bold" data-cmd="bold" aria-label="太字">B</button>
+    <div class="format-divider"></div>
+    <button class="format-btn clear" data-cmd="removeFormat" aria-label="書式を消す">解除</button>
+  </div>
+
+  <!-- Navigation Bar -->
+  <div class="nav-bar" id="navBar">
+    <button class="nav-btn" id="prevBtn" aria-label="前のページ">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+    <span class="nav-indicator" id="navIndicator">1 / 1</span>
+    <button class="nav-btn" id="nextBtn" aria-label="次のページ">
+      <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"></polyline></svg>
+    </button>
+    <div class="nav-divider"></div>
+    <button class="nav-btn accent" id="newBtn" aria-label="新しいページ">
+      <svg viewBox="0 0 24 24">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Swipe indicators -->
+  <div class="swipe-indicator left" id="swipeLeft"></div>
+  <div class="swipe-indicator right" id="swipeRight"></div>
+
+  <script>
+    // ── Storage ──
+    const STORAGE_KEY = 'kakinaguri_pages';
+    const EXPIRY_DAYS = 3;
+
+    function loadPages() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const pages = JSON.parse(raw);
+        const now = Date.now();
+        const cutoff = EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+        // 3日で消す & データ移行
+        return pages
+          .filter(p => (now - p.created) < cutoff)
+          .map(migratePage);
+      } catch {
+        return [];
+      }
+    }
+
+    // ── 書式まわり ──
+    // 残す；それ以外は中身のテキストだけ拾って捨てる
+    const ALLOWED_TAGS = new Set(['DIV', 'BR', 'S', 'STRIKE', 'DEL', 'B', 'STRONG', 'I', 'EM', 'U', 'P', 'SPAN']);
+    // 中身ごと消すやつ
+    const DROP_TAGS = new Set([
+      'SCRIPT', 'STYLE', 'TEMPLATE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'IMG', 'VIDEO',
+      'AUDIO', 'LINK', 'META', 'SVG', 'MATH', 'CANVAS', 'FORM', 'INPUT', 'BUTTON', 'TEXTAREA',
+    ]);
+
+    // 保存された HTML はそのまま信用せず、タグと属性を洗ってから使う
+    function sanitizeHTML(html) {
+      const doc = document.implementation.createHTMLDocument('');
+      doc.body.innerHTML = String(html || '');
+
+      (function walk(node) {
+        Array.from(node.childNodes).forEach((child) => {
+          if (child.nodeType === Node.TEXT_NODE) return;
+          if (child.nodeType !== Node.ELEMENT_NODE) {
+            child.remove();
+            return;
+          }
+          const tag = child.tagName.toUpperCase();
+          if (DROP_TAGS.has(tag)) {
+            child.remove();
+            return;
+          }
+          if (!ALLOWED_TAGS.has(tag)) {
+            // 見出しやリストなど → 中のテキストだけ残す
+            walk(child);
+            const parent = child.parentNode;
+            while (child.firstChild) parent.insertBefore(child.firstChild, child);
+            child.remove();
+            return;
+          }
+          Array.from(child.attributes).forEach(attr => child.removeAttribute(attr.name));
+          walk(child);
+        });
+      })(doc.body);
+
+      return doc.body.innerHTML;
+    }
+
+    function escapeHTML(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // 旧フォーマット → html 1本に移行
+    //   v1: page.text   … 改行区切りのプレーンテキスト
+    //   v2: page.lines  … [{ text, crossed }]（crossed 行は <s> にする）
+    function migratePage(page) {
+      if (typeof page.html === 'string') {
+        page.html = sanitizeHTML(page.html);
+        return page;
+      }
+
+      let lines;
+      if (Array.isArray(page.lines)) {
+        lines = page.lines.map(l => ({ text: l.text || '', crossed: !!l.crossed }));
+      } else {
+        lines = String(page.text || '').split('\n').map(t => ({ text: t, crossed: false }));
+      }
+
+      page.html = lines
+        .map((l) => {
+          const body = l.text === '' ? '<br>' : escapeHTML(l.text);
+          return '<div>' + (l.crossed && l.text !== '' ? '<s>' + body + '</s>' : body) + '</div>';
+        })
+        .join('');
+
+      delete page.lines;
+      delete page.text;
+      return page;
+    }
+
+    function savePages(pagesData) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pagesData));
+    }
+
+    function formatDate(ts) {
+      const d = new Date(ts);
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+      const hour = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${month}/${day} ${hour}:${min}`;
+    }
+
+    // ── State ──
+    let pages = loadPages();
+    let currentIndex = -1;
+    let isAnimating = false;
+
+    const paperEl = document.getElementById('currentPaper');
+    const editor = document.getElementById('editor');
+    const formatBar = document.getElementById('formatBar');
+    const paperDate = document.getElementById('paperDate');
+    const navIndicator = document.getElementById('navIndicator');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const newBtn = document.getElementById('newBtn');
+    const trashBtn = document.getElementById('trashBtn');
+    const swipeLeft = document.getElementById('swipeLeft');
+    const swipeRight = document.getElementById('swipeRight');
+
+    // ── Editor ──
+    function renderEditor() {
+      const page = pages[currentIndex];
+      if (!page) return;
+      editor.innerHTML = page.html || '';
+      updateEmptyState();
+      editor.scrollTop = 0;
+    }
+
+    function updateEmptyState() {
+      editor.dataset.empty = editor.textContent.trim() === '' ? 'true' : 'false';
+    }
+
+    // 末尾にカーソルを置く
+    function focusEditorEnd() {
+      editor.focus();
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      const sel = document.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    // Enter は素の contenteditable に任せる（改行が入るだけ）。
+    // ただし段落区切りは <div> に統一しておく（ブラウザ差で余白が出るのを防ぐ）
+    try {
+      document.execCommand('defaultParagraphSeparator', false, 'div');
+    } catch {}
+
+    editor.addEventListener('input', () => {
+      updateEmptyState();
+      scheduleSave();
+    });
+
+    // 貼り付けはプレーンテキストだけ受け取る（他所の書式を持ち込ませない）
+    editor.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+
+    // ドロップも同じ扱い
+    editor.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const text = e.dataTransfer && e.dataTransfer.getData('text/plain');
+      if (text) document.execCommand('insertText', false, text);
+    });
+
+    // ── 左の余白をタップ → その行を丸ごと取り消し線 ──
+    // 選択もツールバーも要らない経路。片手でサッと消せる
+    const MARGIN_WIDTH = 36; // CSS の --margin-width と揃える
+    const STRIKE_TAGS = /^(S|STRIKE|DEL)$/;
+
+    // clientY の位置にある「行」（editor の直下の子）を探す
+    function blockAtY(clientY) {
+      for (const node of editor.childNodes) {
+        let rect;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const range = document.createRange();
+          range.selectNode(node);
+          rect = range.getBoundingClientRect();
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          rect = node.getBoundingClientRect();
+        }
+        if (rect && rect.height > 0 && clientY >= rect.top && clientY <= rect.bottom) {
+          return node;
+        }
+      }
+      return null;
+    }
+
+    function unwrap(el) {
+      const parent = el.parentNode;
+      while (el.firstChild) parent.insertBefore(el.firstChild, el);
+      el.remove();
+    }
+
+    function toggleStrikeOnBlock(node) {
+      if (!node) return false;
+
+      // 生のテキストノード（1行目がタグで包まれていない場合）
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (node.textContent.trim() === '') return false;
+        const range = document.createRange();
+        range.selectNode(node);
+        const s = document.createElement('s');
+        range.surroundContents(s);
+        return true;
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) return false;
+
+      // すでに消してある → 戻す
+      if (STRIKE_TAGS.test(node.tagName)) {
+        unwrap(node);
+        return true;
+      }
+      const only = node.childNodes.length === 1 ? node.firstChild : null;
+      if (only && only.nodeType === Node.ELEMENT_NODE && STRIKE_TAGS.test(only.tagName)) {
+        unwrap(only);
+        return true;
+      }
+
+      if (node.textContent.trim() === '') return false; // 空行は無視
+
+      const s = document.createElement('s');
+      while (node.firstChild) s.appendChild(node.firstChild);
+      node.appendChild(s);
+      return true;
+    }
+
+    editor.addEventListener('pointerdown', (e) => {
+      const rect = editor.getBoundingClientRect();
+      if (e.clientX - rect.left > MARGIN_WIDTH) return; // 余白の外なら普通に入力
+
+      e.preventDefault(); // カーソルを置かない
+      if (toggleStrikeOnBlock(blockAtY(e.clientY))) {
+        updateEmptyState();
+        scheduleSave();
+      }
+    });
+
+    // ── Format Bar ──
+    const FORMAT_BAR_GAP = 10;
+
+    function selectionInsideEditor() {
+      const sel = document.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+      const range = sel.getRangeAt(0);
+      if (!editor.contains(range.commonAncestorContainer)) return null;
+      if (range.toString().trim() === '') return null;
+      return range;
+    }
+
+    // 最後に選択していた範囲を覚えておく。
+    // ボタンを押した拍子に選択が外れても、これを戻してから書式をかける
+    let savedRange = null;
+    // 押している最中フラグ。true の間はバーを消さない
+    let barBusy = false;
+
+    function rememberSelection() {
+      const range = selectionInsideEditor();
+      if (range) savedRange = range.cloneRange();
+      return range;
+    }
+
+    function restoreSelection() {
+      if (selectionInsideEditor()) return true;
+      if (!savedRange || !editor.contains(savedRange.commonAncestorContainer)) return false;
+      const sel = document.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+      return !!selectionInsideEditor();
+    }
+
+    function updateFormatBar() {
+      // ボタンを押している最中はバーを消さない
+      // （消すと pointer-events が切れて、タップが素通りしてしまう）
+      if (barBusy) return;
+
+      const range = rememberSelection();
+      if (!range) {
+        formatBar.classList.remove('visible');
+        return;
+      }
+
+      // ボタンの ON/OFF 表示
+      formatBar.querySelectorAll('.format-btn').forEach((btn) => {
+        const cmd = btn.dataset.cmd;
+        let on = false;
+        if (cmd !== 'removeFormat') {
+          try { on = document.queryCommandState(cmd); } catch {}
+        }
+        btn.classList.toggle('active', on);
+      });
+
+      formatBar.classList.add('visible');
+
+      const rect = range.getBoundingClientRect();
+      const barRect = formatBar.getBoundingClientRect();
+      const paperRect = editor.getBoundingClientRect();
+
+      let left = rect.left + rect.width / 2 - barRect.width / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - barRect.width - 8));
+
+      // 基本は選択の「下」に出す。
+      // iOS が出す純正メニュー（コピー等）は選択の上に出るので、そこを避ける
+      let top = rect.bottom + FORMAT_BAR_GAP;
+      if (top + barRect.height > paperRect.bottom) {
+        top = rect.top - barRect.height - FORMAT_BAR_GAP;
+      }
+      top = Math.max(8, Math.min(top, window.innerHeight - barRect.height - 8));
+
+      formatBar.style.left = left + 'px';
+      formatBar.style.top = top + 'px';
+    }
+
+    let formatBarRaf = 0;
+    function queueFormatBarUpdate() {
+      cancelAnimationFrame(formatBarRaf);
+      formatBarRaf = requestAnimationFrame(updateFormatBar);
+    }
+
+    document.addEventListener('selectionchange', queueFormatBarUpdate);
+    // スクロールすると選択範囲が動くので、バーも追従させる
+    editor.addEventListener('scroll', queueFormatBarUpdate, { passive: true });
+    window.addEventListener('resize', queueFormatBarUpdate);
+
+    // iOS では touchstart で preventDefault すると click が飛んでこない。
+    // なので click ではなく、押した/離した の対で処理する。
+    // pointer が使えるならそれだけを使う（touch と mouse の二重発火を避けるため）
+    formatBar.querySelectorAll('.format-btn').forEach((btn) => {
+      const press = (e) => {
+        // これをやらないと、押した瞬間に選択が外れる
+        e.preventDefault();
+        barBusy = true;
+        btn.classList.add('pressed');
+      };
+
+      const release = (e) => {
+        e.preventDefault();
+        btn.classList.remove('pressed');
+        applyFormat(btn.dataset.cmd);
+        barBusy = false;
+        updateFormatBar();
+      };
+
+      if (window.PointerEvent) {
+        btn.addEventListener('pointerdown', press);
+        btn.addEventListener('pointerup', release);
+        btn.addEventListener('pointercancel', () => {
+          barBusy = false;
+          btn.classList.remove('pressed');
+        });
+      } else {
+        btn.addEventListener('touchstart', press, { passive: false });
+        btn.addEventListener('touchend', release, { passive: false });
+        btn.addEventListener('mousedown', press);
+        btn.addEventListener('mouseup', release);
+      }
+
+      // 保険。上で処理済みなので click は潰すだけ
+      btn.addEventListener('click', e => e.preventDefault());
+    });
+
+    function applyFormat(cmd) {
+      // タップで選択が外れていたら、覚えておいた範囲を戻す
+      editor.focus();
+      if (!restoreSelection()) return;
+
+      try {
+        // span+style ではなく <s> / <b> で入るようにする
+        document.execCommand('styleWithCSS', false, false);
+      } catch {}
+
+      let ok = false;
+      try {
+        ok = document.execCommand(cmd, false, null);
+      } catch {}
+
+      // execCommand が効かないブラウザ用の手動フォールバック
+      if (!ok && cmd !== 'removeFormat') {
+        ok = manualToggle(cmd);
+      }
+
+      rememberSelection();
+      updateEmptyState();
+      scheduleSave();
+    }
+
+    // <s> / <b> を自分で付け外しする
+    function manualToggle(cmd) {
+      const tag = cmd === 'bold' ? 'B' : 'S';
+      const range = selectionInsideEditor();
+      if (!range) return false;
+
+      // すでにその書式の中にいるなら外す
+      let node = range.commonAncestorContainer;
+      while (node && node !== editor) {
+        if (node.nodeType === Node.ELEMENT_NODE && node.tagName === tag) {
+          const parent = node.parentNode;
+          while (node.firstChild) parent.insertBefore(node.firstChild, node);
+          node.remove();
+          return true;
+        }
+        node = node.parentNode;
+      }
+
+      const wrapper = document.createElement(tag);
+      try {
+        range.surroundContents(wrapper);
+      } catch {
+        // 選択がタグをまたいでいると surroundContents が使えない
+        wrapper.appendChild(range.extractContents());
+        range.insertNode(wrapper);
+      }
+
+      const sel = document.getSelection();
+      const next = document.createRange();
+      next.selectNodeContents(wrapper);
+      sel.removeAllRanges();
+      sel.addRange(next);
+      return true;
+    }
+
+    // ── Save (debounced) ──
+    let saveTimeout;
+    function scheduleSave() {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(saveCurrent, 400);
+    }
+
+    // エディタの中身をページに書き戻して保存する
+    function saveCurrent() {
+      clearTimeout(saveTimeout);
+      if (currentIndex >= 0 && currentIndex < pages.length) {
+        pages[currentIndex].html = sanitizeHTML(editor.innerHTML);
+        savePages(pages);
+      }
+    }
+
+    // ── Page Management ──
+    function showPage(index) {
+      if (index < 0 || index >= pages.length || isAnimating) return;
+
+      saveCurrent();
+      formatBar.classList.remove('visible');
+
+      // 書いてる途中でページを移ったら、移った先でもそのまま書けるようにする
+      // （スマホでキーボードが閉じないように）
+      const wasWriting = document.activeElement === editor;
+
+      isAnimating = true;
+      paperEl.classList.add('switching');
+
+      setTimeout(() => {
+        currentIndex = index;
+        renderCurrentPage();
+        paperEl.classList.remove('switching');
+        isAnimating = false;
+        if (wasWriting) focusEditorEnd();
+      }, 150);
+    }
+
+    function renderCurrentPage() {
+      const page = pages[currentIndex];
+      paperDate.textContent = formatDate(page.created);
+      renderEditor();
+      updateNav();
+    }
+
+    function addNewPage() {
+      if (isAnimating) return;
+      saveCurrent();
+
+      const newPage = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        html: '',
+        created: Date.now(),
+      };
+      pages.push(newPage);
+      savePages(pages);
+
+      showPage(pages.length - 1);
+    }
+
+    function deletePage() {
+      if (isAnimating) return;
+
+      if (pages.length <= 1) {
+        // 最後の1枚 → 中身だけ消す
+        const wasWriting = document.activeElement === editor;
+        pages[currentIndex].html = '';
+        renderEditor();
+        formatBar.classList.remove('visible');
+        savePages(pages);
+        if (wasWriting) focusEditorEnd();
+        return;
+      }
+
+      isAnimating = true;
+      paperEl.classList.add('switching');
+
+      setTimeout(() => {
+        pages.splice(currentIndex, 1);
+        savePages(pages);
+
+        if (currentIndex >= pages.length) {
+          currentIndex = pages.length - 1;
+        }
+
+        renderCurrentPage();
+        paperEl.classList.remove('switching');
+        isAnimating = false;
+      }, 150);
+    }
+
+    function updateNav() {
+      navIndicator.textContent = `${currentIndex + 1} / ${pages.length}`;
+      prevBtn.disabled = currentIndex <= 0;
+      nextBtn.disabled = currentIndex >= pages.length - 1;
+    }
+
+    // ── Events ──
+    newBtn.addEventListener('click', addNewPage);
+    trashBtn.addEventListener('click', deletePage);
+
+    prevBtn.addEventListener('click', () => {
+      if (currentIndex > 0) showPage(currentIndex - 1);
+    });
+
+    nextBtn.addEventListener('click', () => {
+      if (currentIndex < pages.length - 1) showPage(currentIndex + 1);
+    });
+
+    // Swipe navigation
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isSwiping = false;
+
+    document.addEventListener('touchstart', (e) => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      isSwiping = false;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (!touchStartX) return;
+      const dx = e.touches[0].clientX - touchStartX;
+      const dy = e.touches[0].clientY - touchStartY;
+
+      if (Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        isSwiping = true;
+        if (dx > 0 && currentIndex > 0) {
+          swipeLeft.classList.add('visible');
+        } else if (dx < 0 && currentIndex < pages.length - 1) {
+          swipeRight.classList.add('visible');
+        }
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+      swipeLeft.classList.remove('visible');
+      swipeRight.classList.remove('visible');
+
+      if (!isSwiping) return;
+
+      // 文字を選択している最中のドラッグでページをめくらない
+      if (selectionInsideEditor()) {
+        touchStartX = 0;
+        isSwiping = false;
+        return;
+      }
+
+      const dx = e.changedTouches[0].clientX - touchStartX;
+
+      if (Math.abs(dx) > 60) {
+        saveCurrent();
+        if (dx > 0 && currentIndex > 0) {
+          showPage(currentIndex - 1);
+        } else if (dx < 0 && currentIndex < pages.length - 1) {
+          showPage(currentIndex + 1);
+        }
+      }
+
+      touchStartX = 0;
+      isSwiping = false;
+    }, { passive: true });
+
+    // Save on blur / visibility change
+    document.addEventListener('visibilitychange', saveCurrent);
+    window.addEventListener('beforeunload', saveCurrent);
+
+    // ── Init ──
+    function init() {
+      pages = loadPages();
+      if (pages.length === 0) {
+        addNewPage();
+      } else {
+        currentIndex = pages.length - 1;
+        renderCurrentPage();
+      }
+    }
+
+    init();
+
+    // Service Worker 登録
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js');
+    }
+  </script>
+</body>
+</html>
